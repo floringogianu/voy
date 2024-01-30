@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, astuple, dataclass
 from datetime import datetime as dt
-from typing import List, Optional, Self
+from typing import List, Optional
 
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
 
@@ -37,13 +37,13 @@ class Author:
         return self._papers
 
     @classmethod
-    def get(cls, id_: str, db: Storage) -> Self:
+    def get(cls, id_: str, db: Storage) -> Author:
         res = db(Q.get_author, {"id": id_}).fetchone()
         _id, last, other, suffix, followed = res
         return cls(last, other, suffix, followed, _id)
 
     @classmethod
-    def get_all_followed(cls, db: Storage) -> List[Self]:
+    def get_all_followed(cls, db: Storage) -> List[Author]:
         res = db(Q.get_followed, {}).fetchall()
         return [cls(last, other, sfx, flwd, id_) for id_, last, other, sfx, flwd in res]
 
