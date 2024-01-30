@@ -7,6 +7,11 @@ from voy import cf
 
 from .models import AuthoredPapers, Paper
 
+try:
+    WIDTH = os.get_terminal_size().columns
+except OSError:
+    WIDTH = 80
+
 
 def short_date(date):
     t = dt.strptime(date, Paper.DATE_FMT)
@@ -14,9 +19,8 @@ def short_date(date):
 
 
 def _clip(seq: str, offset: int = 0) -> str:
-    w = os.get_terminal_size().columns
-    if len(seq) + offset > w:
-        return f"{seq:.{w - (offset + 3)}s}..."
+    if len(seq) + offset > WIDTH:
+        return f"{seq:.{WIDTH - (offset + 3)}s}..."
     return seq
 
 
