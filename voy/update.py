@@ -159,7 +159,7 @@ def from_arxiv_api(opt):
 
     start_idx = opt.start_index
     new_cnt, upd_cnt, old_cnt = 0, 0, 0
-    while not old_cnt > 100 or (start_idx > opt.stop_index):
+    while not ((old_cnt > 100) or (start_idx > opt.stop_index)):
         papers = fetch_batch(query, start_idx)
 
         if len(papers) != 100:
