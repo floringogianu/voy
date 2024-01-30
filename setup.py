@@ -23,12 +23,12 @@ setup(
     author_email="florin.gogianu@gmail.com",
     license="MIT",
     install_requires=[
-        "colorful",
-        "datargs",
-        "feedparser",
-        "jsonlines",
-        "platformdirs",
-        "xxhash",
+        "colorful~=0.5.6",
+        "datargs~=1.0.0",
+        "feedparser~=6.0.11",
+        "jsonlines~=4.0.0",
+        "platformdirs~=4.1.0",
+        "xxhash~=3.4.1",
     ],
     zip_safe=False,
 )
