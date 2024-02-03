@@ -1,11 +1,15 @@
+import logging
 import os
 from datetime import datetime as dt
 from itertools import chain
 from typing import List, Tuple
 
-from voy import cf
+from voy import VOY_LOGS, cf
 
 from .models import AuthoredPapers, Paper
+
+log = logging.getLogger("voy")
+
 
 try:
     WIDTH = os.get_terminal_size().columns
@@ -121,3 +125,14 @@ def author_list(authors):
                 cf.yellow | author.id,
             )
         )
+
+
+def info(msg):
+    log.info(msg)
+    print(msg)
+
+
+def critical(msg, *args, **kwargs):
+    """Critical messages are the only ones communicated to the user."""
+    msg = str(msg) + f"Check logs for details\n{VOY_LOGS}."
+    log.critical(msg, *args, **kwargs)

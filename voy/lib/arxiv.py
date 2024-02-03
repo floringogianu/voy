@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 import feedparser
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("voy")
 
 
 def get_response(search_query, start_index=0):

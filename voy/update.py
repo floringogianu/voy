@@ -1,5 +1,7 @@
+import logging
 import random
 import re
+import sys
 import time
 from datetime import datetime as dt
 from typing import Optional, Tuple
@@ -7,13 +9,17 @@ from typing import Optional, Tuple
 import jsonlines as jl
 
 import voy.query as Q
-from voy import CATEGORIES, cf
+import voy.views as V
+from voy import CATEGORIES
 
 from .lib.arxiv import get_response, parse_response
 from .models import Author, Paper, PaperMeta
 from .storage import Storage
 
 PREFIX_MATCH = "van|der|de|la|von|del|della|da|mac|ter|dem|di|vaziri"
+BATCH_SIZE = 100
+
+log = logging.getLogger("voy")
 
 
 def from_json(opt):
@@ -61,13 +67,13 @@ def from_json(opt):
             if jid % 100_000 == 0 and jid != 0:
                 delta = time.time() - t0
                 paper_num, author_num = Paper.count(db), Author.count(db)
-                print(
+                V.info(
                     "[{:7d}] papers={:6d}, authors={:6d}  |  {:6.1f} i/s.".format(
                         jid, paper_num, author_num, paper_num / delta
                     )
                 )
-    print("Papers:  ", Paper.count(db))
-    print("Authors: ", Author.count(db))
+    V.info("Papers:  ", Paper.count(db))
+    V.info("Authors: ", Author.count(db))
     db.close()
 
 
@@ -130,26 +136,38 @@ def _normalize_author_name(name: str) -> Tuple[str, str, Optional[str]]:
     return author_entry
 
 
-def fetch_batch(query, start_idx):
-    res = get_response(query, start_index=start_idx)
-    papers = []
-    for p in parse_response(res):
-        paper = Paper(
-            id=p["_id"],
-            created=time.strftime(Paper.DATE_FMT, p["published_parsed"]),
-            updated=time.strftime(Paper.DATE_FMT, p["updated_parsed"]),
-            meta=PaperMeta(
-                title=p["title"].replace("\n", "").replace("  ", " "),
-                abstract=p["summary"].replace("\n", "").replace("  ", " "),
-                authors=[
-                    Author(*_normalize_author_name(a["name"])) for a in p["authors"]
-                ],
-                version=p["_version"],
-                categories=[t["term"] for t in p["tags"]],
-            ),
-        )
-        papers.append(paper)
-    return sorted(papers, key=lambda p: p.updated)
+def fetch_batch(query, start_idx, max_tries=5):
+    tries = 0
+    while True:
+        res = get_response(query, start_index=start_idx)
+        papers = []
+        for p in parse_response(res):
+            paper = Paper(
+                id=p["_id"],
+                created=time.strftime(Paper.DATE_FMT, p["published_parsed"]),
+                updated=time.strftime(Paper.DATE_FMT, p["updated_parsed"]),
+                meta=PaperMeta(
+                    title=p["title"].replace("\n", "").replace("  ", " "),
+                    abstract=p["summary"].replace("\n", "").replace("  ", " "),
+                    authors=[
+                        Author(*_normalize_author_name(a["name"])) for a in p["authors"]
+                    ],
+                    version=p["_version"],
+                    categories=[t["term"] for t in p["tags"]],
+                ),
+            )
+            papers.append(paper)
+
+        # check if enough
+        if len(papers) != BATCH_SIZE:
+            log.warn("not a full batch, got %s instead; retrying", len(papers))
+            time.sleep(2 + random.uniform(0, 4))
+            tries += 1
+            if tries >= max_tries:
+                raise ValueError("arXiv API not reachable, exiting.")
+            continue
+        else:
+            return sorted(papers, key=lambda p: p.updated)
 
 
 def from_arxiv_api(opt):
@@ -160,18 +178,12 @@ def from_arxiv_api(opt):
     start_idx = opt.start_index
     new_cnt, upd_cnt, old_cnt = 0, 0, 0
     while not ((old_cnt > 100) or (start_idx > opt.stop_index)):
-        papers = fetch_batch(query, start_idx)
-
-        if len(papers) != 100:
-            print("not a full batch...")
-            time.sleep(2 + random.uniform(0, 4))
-            continue
-
-        print(
-            "[@{:5d}] new: {:,}, upd: {:,}, old: {:,}".format(
-                start_idx, new_cnt, upd_cnt, old_cnt
-            )
-        )
+        try:
+            papers = fetch_batch(query, start_idx)
+        except Exception as _:
+            log.exception("Exception occured, exiting.")
+            V.critical("arXiv API not reachable, exiting.")
+            sys.exit()
 
         for paper in papers:
             if paper.exists(db):
@@ -185,7 +197,7 @@ def from_arxiv_api(opt):
                     paper.update(db)
                     upd_cnt += 1
                 else:
-                    print(cf.red | "this shouldn't happend")
+                    log.error("Paper version can either be higher or the same.")
             else:
                 # add paper
                 paper.save(db)
@@ -200,6 +212,13 @@ def from_arxiv_api(opt):
 
             # write to database
             db.commit()
-        start_idx += 100
+
+        V.info(
+            "[@{:5d}] old: {:,}, new: {:,}, updated: {:,}".format(
+                start_idx, old_cnt, new_cnt, upd_cnt
+            )
+        )
+
+        start_idx += BATCH_SIZE
     db.close()
-    print("new:  {:,}\nupd:  {:,}\n old:  {:,}".format(new_cnt, upd_cnt, old_cnt))
+    V.info("new:  {:,}\nupd:  {:,}\nold:  {:,}".format(new_cnt, upd_cnt, old_cnt))

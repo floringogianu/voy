@@ -1,5 +1,6 @@
 import argparse
 import csv
+import logging
 from dataclasses import MISSING
 from datetime import datetime as dt
 from pathlib import Path
@@ -14,6 +15,8 @@ from .models import Author, Paper
 from .storage import Storage
 from .update import from_arxiv_api, from_json
 
+log = logging.getLogger("voy")
+
 
 def show(opt: "Show") -> None:
     followee_papers = []
@@ -22,7 +25,7 @@ def show(opt: "Show") -> None:
         if opt.author:  # fetch for one author
             authors = search_author(opt.author, view=False)
             if not authors:
-                print(f"Found no author {opt.author}")
+                V.info(f"Found no author {opt.author}")
                 return
             for author in authors:
                 if papers := author.get_papers(db, opt.since):
@@ -58,44 +61,68 @@ def search_author(
 
     if not res:
         if view:
-            print("Found no results for: ", searched)
-        return None
+            V.info(f"Found no results for: {searched}.")
+        return []
     # aid, last name, other names, suffix
-    authors = [Author(r[1], r[2], r[3], id=r[0]) for r in res]
-    authors = sorted(authors, key=lambda a: a.last_name)
+    authors = sorted([Author(r[1], r[2], r[3], id=r[0]) for r in res])
     if view:
         V.author_list(authors)
     return authors
 
 
 def follow(opt):
+    log.debug(opt)
     with Storage() as db:
         # TODO: handle the cases of multiple or no authors
-        author = search_author(opt.author, view=False).pop()
-        if author.followed:
-            print(f"{author} already followed.")
-            return
-        author.followed = True
-        author.update(db)
-        db.commit()
-        followed = Author.get_all_followed(db)
-    V.author_list(followed)
-    print(f"Following {len(followed)} authors.")
+        result = search_author(opt.author, view=False)
+        match result:
+            case []:
+                V.info(f"{opt.author} not in the database, try variations of the name.")
+            case [author]:
+                if author.followed:
+                    V.info(f"{author} already followed.")
+                    return
+                author.followed = True
+                author.update(db)
+                db.commit()
+                followed = Author.get_all_followed(db)
+                V.author_list(followed)
+                print(f"Following {len(followed)} authors.")
+            case [*authors]:
+                V.info(f"Multiple matches for {opt.author}:")
+                V.author_list(authors)
+                V.info("Try again with one of the authors above.")
+            case _:
+                log.error(f"pattern matching failed for {opt.author} -> {result}.")
 
 
 def unfollow(opt):
+    log.debug(opt)
     with Storage() as db:
-        author = search_author(opt.author, view=False).pop()
-        if not author.followed:
-            print(f"{author} not followed.")
-            return
-        author.followed = False
-        author.update(db)
-        print(f"{author} unfollowed.")
-        db.commit()
-        followed = Author.get_all_followed(db)
-    V.author_list(followed)
-    print(f"Following {len(followed)} authors.")
+        result = search_author(opt.author, view=False)
+        match result:
+            case []:
+                V.info(f"{opt.author} not in the database.")
+            case [author]:
+                if not author.followed:
+                    V.info(f"{author} not followed.")
+                    return
+                author.followed = False
+                author.update(db)
+                db.commit()
+                V.info(f"{author} unfollowed.")
+                followed = Author.get_all_followed(db)
+                V.author_list(followed)
+                V.info(f"Now following {len(followed)} authors.")
+            case [*authors]:
+                followed = Author.get_all_followed(db)
+                hits_in_followed = sorted([a for a in authors if a in followed])
+                V.info(f"Multiple matches for {opt.author}, out of which you follow:")
+                V.author_list(hits_in_followed)
+                V.info("Be more specific by using the full name.")
+            case _:
+                # TODO should we show the user non-critical errors?
+                log.error(f"pattern matching failed for {opt.author} -> {result}.")
 
 
 def info(opt):
@@ -108,7 +135,7 @@ def info(opt):
             "authors": Author.count(db),
             "followed": Author.count(db, followed=True),
         }
-        followed = Author.get_all_followed(db)
+        followed = sorted(Author.get_all_followed(db))
 
     if followed:
         print("Following: ")
@@ -126,7 +153,7 @@ def info(opt):
         )
     )
     if not followed:
-        print("\nStart following authors with `voy add`.")
+        V.info("\nStart following authors with `voy add`.")
 
 
 def export(opt):
@@ -238,6 +265,7 @@ def main() -> None:
             epilog="Hint: start with `voy update --help` to fetch some data.",
         ),
     )
+    log.info(args)
 
     # show
     if isinstance(args.action, Show):
@@ -250,7 +278,7 @@ def main() -> None:
         elif args.action.from_arxiv_api:
             from_arxiv_api(args.action)
         else:
-            print(
+            V.info(
                 "Either update from arXiv API or from kaggle json. See `voy update --help`."
             )
 

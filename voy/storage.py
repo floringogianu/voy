@@ -1,6 +1,7 @@
 import sqlite3
 
 import voy.query as Q
+import voy.views as V
 from voy import VOY_PATH
 
 
@@ -11,7 +12,7 @@ class Storage:
         try:
             self.con = sqlite3.connect(Storage.DB_PATH)
         except:
-            print("Trying to open connection: ", Storage.DB_PATH)
+            V.info("Trying to open connection: ", Storage.DB_PATH)
             raise
 
         if in_memory:
