@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, astuple, dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime as dt
 from typing import List, Optional
 
@@ -86,7 +86,7 @@ class Author:
 
     def __hstr(self):
         """Change this and the hash changes."""
-        last, other, sfx, _, _, _ = astuple(self)
+        last, other, sfx = self.last_name, self.other_names, self.name_suffix
         return f"{other} {last} {sfx}" if sfx else f"{other} {last}"
 
     def __hash__(self):
@@ -111,7 +111,7 @@ class Author:
         return NotImplemented
 
     def __str__(self):
-        last, other, sfx, _, _, _ = astuple(self)
+        last, other, sfx = self.last_name, self.other_names, self.name_suffix
         return f"{other} {last} {sfx}" if sfx else f"{other} {last}"
 
 
