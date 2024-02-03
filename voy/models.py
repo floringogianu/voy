@@ -100,6 +100,16 @@ class Author:
             return str(self) == str(other)
         return NotImplemented
 
+    def __gt__(self, other):
+        if isinstance(other, Author):
+            return self.last_name > other.last_name
+        return NotImplemented
+
+    def __lt__(self, other):
+        if isinstance(other, Author):
+            return self.last_name < other.last_name
+        return NotImplemented
+
     def __str__(self):
         last, other, sfx, _, _, _ = astuple(self)
         return f"{other} {last} {sfx}" if sfx else f"{other} {last}"
