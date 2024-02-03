@@ -182,7 +182,7 @@ class Show:
             since = now.replace(year=now.year - 1)
         except ValueError:
             since = now.replace(year=now.year - 1, day=now.day - 1)
-        self.since = dt.strftime(since, Paper.DATE_FMT)
+        self.since = self.since or dt.strftime(since, Paper.DATE_FMT)
 
 
 @argsclass(description="seed database", parser_params=_pp)
