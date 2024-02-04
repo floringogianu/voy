@@ -91,11 +91,11 @@ def _list_papers(papers: List[Paper], coauthors: bool, url: bool, pfx=" ", sep="
                    co-authors
 
     {pfx}MM dd{sep}Title...
-                   link
+                   url
 
     {pfx}MM dd{sep}Title...
                    co-authors
-                   link
+                   url
     """
     offset = len(pfx) + len(sep)
     for (date, title), paper in zip(_date_title_rows(papers, offset), papers):
@@ -103,7 +103,7 @@ def _list_papers(papers: List[Paper], coauthors: bool, url: bool, pfx=" ", sep="
         if coauthors:
             print(_coauthor_rows(paper, len(date) + offset))
         if url:
-            print(cf.cyan | f"{' ':>{len(date)+1}}https://arxiv.org/abs/{paper.id}")
+            print(cf.cyan | f"{'':>{len(date)+offset}}https://arxiv.org/abs/{paper.id}")
 
 
 def latest_papers(
