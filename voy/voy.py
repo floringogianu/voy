@@ -8,9 +8,8 @@ from typing import List, Optional, Sequence, Union
 
 from datargs import arg, argsclass, parse
 
-import voy.query as Q
-import voy.views as V
-
+from . import query as Q
+from . import views as V
 from .models import Author, Paper
 from .storage import Storage
 from .update import from_arxiv_api, from_json

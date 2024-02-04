@@ -7,8 +7,7 @@ from typing import List, Optional
 
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
 
-import voy.query as Q
-
+from . import query as Q
 from .storage import Storage
 
 

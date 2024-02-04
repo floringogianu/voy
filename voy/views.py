@@ -4,8 +4,7 @@ from datetime import datetime as dt
 from itertools import chain
 from typing import List, Tuple
 
-from voy import VOY_LOGS, cf
-
+from . import VOY_LOGS, cf
 from .models import AuthoredPapers, Paper
 
 log = logging.getLogger("voy")

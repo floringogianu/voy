@@ -8,10 +8,9 @@ from typing import Optional, Tuple
 
 import jsonlines as jl
 
-import voy.query as Q
-import voy.views as V
-from voy import CATEGORIES
-
+from . import CATEGORIES
+from . import query as Q
+from . import views as V
 from .lib.arxiv import get_response, parse_response
 from .models import Author, Paper, PaperMeta
 from .storage import Storage

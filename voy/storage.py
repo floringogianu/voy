@@ -1,8 +1,8 @@
 import sqlite3
 
-import voy.query as Q
-import voy.views as V
-from voy import VOY_PATH
+from . import VOY_PATH
+from . import query as Q
+from . import views as V
 
 
 class Storage:
@@ -12,7 +12,7 @@ class Storage:
         try:
             self.con = sqlite3.connect(Storage.DB_PATH)
         except:
-            V.info("Trying to open connection: ", Storage.DB_PATH)
+            V.critical(f"Couldn't connect to {Storage.DB_PATH}")
             raise
 
         if in_memory:
