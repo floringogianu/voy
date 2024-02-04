@@ -39,9 +39,9 @@ def show(opt: "Show") -> None:
     followee_papers = sorted(followee_papers, key=lambda pl: pl.author.other_names)
     if opt.by_author or opt.author:
         for papers in followee_papers:
-            V.author_paper_list(papers, opt.num, opt.coauthors)
+            V.author_paper_list(papers, opt.num, opt.coauthors, opt.url)
     else:
-        V.latest_papers(followee_papers, opt.num, opt.coauthors)
+        V.latest_papers(followee_papers, opt.num, opt.coauthors, opt.url)
 
 
 def search_author(
@@ -196,6 +196,7 @@ class Show:
     coauthors: bool = arg(
         "-c", default=False, help="show co-authors (default: %(default)s)"
     )
+    url: bool = arg("-u", default=False, help="show arixv URL (default: %(default)s)")
     since: str = arg(
         "-t",
         default=(),

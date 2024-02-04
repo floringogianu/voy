@@ -83,7 +83,33 @@ def _coauthor_rows(paper, indent_len):
     return f"{' '*indent_len}{co_str}"
 
 
-def latest_papers(data: List[AuthoredPapers], num_papers: int, coauthors: bool):
+def _list_papers(papers: List[Paper], coauthors: bool, url: bool, pfx=" ", sep=" "):
+    """Lists paper title, date, co-authors and url, in the formats:
+
+    {pfx}MM dd{sep}Title...
+
+    {pfx}MM dd{sep}Title...
+                   co-authors
+
+    {pfx}MM dd{sep}Title...
+                   link
+
+    {pfx}MM dd{sep}Title...
+                   co-authors
+                   link
+    """
+    offset = len(pfx) + len(sep)
+    for (date, title), paper in zip(_date_title_rows(papers, offset), papers):
+        print(f"{pfx}{cf.bold | date}{sep}{cf.bold | title if coauthors else title}")
+        if coauthors:
+            print(_coauthor_rows(paper, len(date) + offset))
+        if url:
+            print(cf.cyan | f"{' ':>{len(date)+1}}https://arxiv.org/abs/{paper.id}")
+
+
+def latest_papers(
+    data: List[AuthoredPapers], num_papers: int, coauthors: bool, url: bool
+):
     slice_ = slice(0, num_papers or None)
     papers = sorted(
         set(chain.from_iterable([apl.papers for apl in data if apl])),
@@ -91,13 +117,12 @@ def latest_papers(data: List[AuthoredPapers], num_papers: int, coauthors: bool):
         reverse=True,
     )[slice_]
 
-    for (date, title), paper in zip(_date_title_rows(papers, 1), papers):
-        print(f"{cf.bold | date} {cf.bold | title if coauthors else title}")
-        if coauthors:
-            print(_coauthor_rows(paper, len(date) + 1))
+    _list_papers(papers, coauthors, url, pfx="")
 
 
-def author_paper_list(data: AuthoredPapers, num_papers: int, coauthors: bool):
+def author_paper_list(
+    data: AuthoredPapers, num_papers: int, coauthors: bool, url: bool
+):
     slice_ = slice(0, num_papers or None)
     papers = sorted(data.papers, key=lambda p: p.updated, reverse=True)[slice_]
 
@@ -105,13 +130,7 @@ def author_paper_list(data: AuthoredPapers, num_papers: int, coauthors: bool):
     author = data.author
     print(cf.yellow | author, "({})".format(cf.green | f"{len(data.papers)} papers"))
 
-    pre, sep = " ", " "
-    offset = len(pre) + len(sep)
-    for (date, title), paper in zip(_date_title_rows(papers, offset), papers):
-        title_ = cf.bold | title if coauthors else title
-        print(f"{pre}{cf.bold | date}{sep}{title_}")
-        if coauthors:
-            print(_coauthor_rows(paper, len(date) + offset))
+    _list_papers(papers, coauthors, url)
 
 
 def author_list(authors):

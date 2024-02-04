@@ -67,7 +67,7 @@ class Author:
         )
         res = csr.fetchall()
         if not res:
-            return None
+            return AuthoredPapers(self, [])
 
         self._papers = []
         for pid, updated, created, meta in res:
