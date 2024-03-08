@@ -1,8 +1,10 @@
+import logging
 import sqlite3
 
-from . import VOY_PATH
+from . import VOY_LOGS, VOY_PATH
 from . import query as Q
-from . import views as V
+
+log = logging.getLogger("voy")
 
 
 class Storage:
@@ -12,7 +14,11 @@ class Storage:
         try:
             self.con = sqlite3.connect(Storage.DB_PATH)
         except:
-            V.critical(f"Couldn't connect to {Storage.DB_PATH}")
+            msg = (
+                f"Couldn't connect to {Storage.DB_PATH}. ",
+                f"Check logs for details\n{VOY_LOGS}.",
+            )
+            log.critical(msg)
             raise
 
         if in_memory:
