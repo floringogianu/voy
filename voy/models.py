@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
 
 from . import query as Q
 from .storage import Storage
+
+PREFIX_MATCH = "van|der|de|la|von|del|della|da|mac|ter|dem|di|vaziri"
 
 
 @dataclass
@@ -30,6 +33,11 @@ class Author:
         with Storage() as db:
             if self.exists(db):
                 self.followed = bool(db(Q.is_followed, {"id": self.id}).fetchone()[0])
+
+    @classmethod
+    def from_string(cls, string: str) -> Author:
+        last, other, suffix = cls._normalize_author_name(string)
+        return cls(last, other, suffix)
 
     @property
     def papers(self):
@@ -79,6 +87,65 @@ class Author:
         if followed:
             return db(Q.count_followed, {}).fetchone()[0]
         return db(Q.count_author, {}).fetchone()[0]
+
+    @staticmethod
+    def _normalize_author_name(name: str) -> Tuple[str, str, Optional[str]]:
+        """Copyright 2017 Cornell University
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy of
+        this software and associated documentation files (the "Software"), to deal in
+        the Software without restriction, including without limitation the rights to
+        use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+        of the Software, and to permit persons to whom the Software is furnished to do
+        so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+
+        Credits: github.com/mattbierbaum/arxiv-public-datasets/
+        """
+        patterns = [
+            (
+                "double-prefix",
+                r"^(.*)\s+(" + PREFIX_MATCH + r")\s(" + PREFIX_MATCH + r")\s(\S+)$",
+            ),
+            ("name-prefix-name", r"^(.*)\s+(" + PREFIX_MATCH + r")\s(\S+)$"),
+            ("name-name-prefix", r"^(.*)\s+(\S+)\s(I|II|III|IV|V|Sr|Jr|Sr\.|Jr\.)$"),
+            ("name-name", r"^(.*)\s+(\S+)$"),
+        ]
+
+        pattern_matches = (
+            (mtype, re.match(m, name, flags=re.IGNORECASE)) for (mtype, m) in patterns
+        )
+
+        (mtype, match) = next(
+            ((mtype, m) for (mtype, m) in pattern_matches if m is not None),
+            ("default", None),
+        )
+        if match is None:
+            author_entry = (name, "", "")
+        elif mtype == "double-prefix":
+            s = "{} {} {}".format(match.group(2), match.group(3), match.group(4))
+            author_entry = (s, match.group(1), "")
+        elif mtype == "name-prefix-name":
+            s = "{} {}".format(match.group(2), match.group(3))
+            author_entry = (s, match.group(1), "")
+        elif mtype == "name-name-prefix":
+            author_entry = (match.group(2), match.group(1), match.group(3))
+        elif mtype == "name-name":
+            author_entry = (match.group(2), match.group(1), "")
+        else:
+            author_entry = (name, "", "")
+
+        return author_entry
 
     def dict(self):
         return {k: v for k, v in self.__dict__.items() if k[0] != "_"}
