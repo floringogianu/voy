@@ -36,7 +36,7 @@ class Author:
 
     @classmethod
     def from_string(cls, string: str) -> Author:
-        last, other, suffix = cls._normalize_author_name(string)
+        last, other, suffix = cls.normalize_author_name(string)
         return cls(last, other, suffix)
 
     @property
@@ -89,7 +89,7 @@ class Author:
         return db(Q.count_author, {}).fetchone()[0]
 
     @staticmethod
-    def _normalize_author_name(name: str) -> Tuple[str, str, Optional[str]]:
+    def normalize_author_name(name: str) -> Tuple[str, str, Optional[str]]:
         """Copyright 2017 Cornell University
 
         Permission is hereby granted, free of charge, to any person obtaining a copy of
