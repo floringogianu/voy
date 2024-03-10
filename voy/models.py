@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
@@ -11,6 +12,8 @@ from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
 
 from . import query as Q
 from .storage import Storage
+
+log = logging.getLogger("voy")
 
 PREFIX_MATCH = "van|der|de|la|von|del|della|da|mac|ter|dem|di|vaziri"
 
@@ -292,6 +295,23 @@ class AuthorDB(Repository[Author]):
             meta = PaperMeta(**json.loads(meta))
             papers.append(Paper(pid, created, updated, meta))
         return AuthoredPapers(author, papers)
+
+    def search(self, searched: str) -> List[Author]:
+        last, other, suffix = Author.normalize_author_name(searched)
+        log.debug("DB search %s, %s, %s", last, other, suffix)
+
+        if other:
+            csr = self.db(Q.search_author, {"last_name": last, "other_names": other})
+            res = csr.fetchall()
+        else:
+            csr = self.db(Q.search_by_last_name, {"last_name": last})
+            res = csr.fetchall()
+
+        if not res:
+            return []
+        # aid, last name, other names, suffix
+        authors = sorted([Author(r[1], r[2], r[3], id=r[0]) for r in res])
+        return authors
 
 
 class PaperDB(Repository[Paper]):

@@ -4,13 +4,12 @@ import logging
 from dataclasses import MISSING
 from datetime import datetime as dt
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import Optional, Sequence, Union
 
 from datargs import arg, argsclass, parse
 
-from . import query as Q
 from . import views as V
-from .models import Author, AuthorDB, Paper, PaperDB
+from .models import AuthorDB, Paper, PaperDB
 from .storage import Storage
 from .update import from_arxiv_api, from_json
 
@@ -22,7 +21,7 @@ def show(opt: "Show") -> None:
 
     with Storage() as db:
         if opt.author:  # fetch for one author
-            authors = search_author(opt.author, view=False)
+            authors = AuthorDB(db).search(" ".join(opt.author))
             if not authors:
                 V.info(f"Found no author {opt.author}")
                 return
@@ -43,37 +42,17 @@ def show(opt: "Show") -> None:
         V.latest_papers(followee_papers, opt.num, opt.coauthors, opt.url)
 
 
-def search_author(
-    searched: Sequence[str], view: bool = True
-) -> Union[None, List[Author]]:
-    # TODO: fix for the last name prefix cases (van, de, etc.)
-    if len(searched) == 1:
-        with Storage() as db:
-            csr = db(Q.search_by_last_name, {"last_name": searched[-1]})
-            res = csr.fetchall()
-    else:
-        last = searched[-1]
-        other = " ".join(searched[:-1])
-        with Storage() as db:
-            csr = db(Q.search_author, {"last_name": last, "other_names": other})
-            res = csr.fetchall()
-
-    if not res:
-        if view:
-            V.info(f"Found no results for: {searched}.")
-        return []
-    # aid, last name, other names, suffix
-    authors = sorted([Author(r[1], r[2], r[3], id=r[0]) for r in res])
-    if view:
-        V.author_list(authors)
-    return authors
+def search_author(searched: Sequence[str]) -> None:
+    with Storage() as db:
+        authors = AuthorDB(db).search(" ".join(searched))
+    V.author_list(authors)
 
 
 def follow(opt) -> None:
     log.debug(opt)
     with Storage() as db:
         # TODO: handle the cases of multiple or no authors
-        result = search_author(opt.author, view=False)
+        result = AuthorDB(db).search(" ".join(opt.author))
         match result:
             case []:
                 V.info(f"{opt.author} not in the database, try variations of the name.")
@@ -100,7 +79,7 @@ def follow(opt) -> None:
 def unfollow(opt) -> None:
     log.debug(opt)
     with Storage() as db:
-        result = search_author(opt.author, view=False)
+        result = AuthorDB(db).search(" ".join(opt.author))
         match result:
             case []:
                 V.info(f"{opt.author} not in the database.")
