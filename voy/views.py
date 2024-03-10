@@ -5,7 +5,7 @@ from itertools import chain
 from typing import List, Tuple
 
 from . import VOY_LOGS, cf
-from .models import AuthoredPapers, Paper
+from .models import Author, Paper
 
 log = logging.getLogger("voy")
 
@@ -106,12 +106,10 @@ def _list_papers(papers: List[Paper], coauthors: bool, url: bool, pfx=" ", sep="
             print(cf.cyan | f"{'':>{len(date)+offset}}https://arxiv.org/abs/{paper.id}")
 
 
-def latest_papers(
-    data: List[AuthoredPapers], num_papers: int, coauthors: bool, url: bool
-):
+def latest_papers(data: list[Author], num_papers: int, coauthors: bool, url: bool):
     slice_ = slice(0, num_papers or None)
     papers = sorted(
-        set(chain.from_iterable([apl.papers for apl in data if apl])),
+        set(chain.from_iterable([author.papers for author in data])),
         key=lambda p: p.updated,
         reverse=True,
     )[slice_]
@@ -119,15 +117,12 @@ def latest_papers(
     _list_papers(papers, coauthors, url, pfx="")
 
 
-def author_paper_list(
-    data: AuthoredPapers, num_papers: int, coauthors: bool, url: bool
-):
+def author_paper_list(author: Author, num_papers: int, coauthors: bool, url: bool):
     slice_ = slice(0, num_papers or None)
-    papers = sorted(data.papers, key=lambda p: p.updated, reverse=True)[slice_]
+    papers = sorted(author.papers, key=lambda p: p.updated, reverse=True)[slice_]
 
     # author header
-    author = data.author
-    print(cf.yellow | author, "({})".format(cf.green | f"{len(data.papers)} papers"))
+    print(cf.yellow | author, "({})".format(cf.green | f"{len(author.papers)} papers"))
 
     _list_papers(papers, coauthors, url)
 

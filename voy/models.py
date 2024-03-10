@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
-from typing import List, Mapping, Optional, Set, Tuple
+from typing import Optional
 
 import arxiv
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
@@ -22,16 +22,27 @@ PREFIX_MATCH = "van|der|de|la|von|del|della|da|mac|ter|dem|di|vaziri"
 CATS = "cat:cs.CV OR cat:cs.LG OR cat:cs.CL OR cat:cs.AI OR cat:cs.NE OR cat:cs.RO"
 
 
+__all__ = (
+    "Author",
+    "AuthorDB",
+    "AuthorArxiv",
+    "Paper",
+    "PaperDB",
+    "PaperArxiv",
+    "PaperList",
+)
+
+PaperList = list["Paper"]
+
+
 @dataclass
 class Author:
     last_name: str
     other_names: str
     name_suffix: Optional[str] = ""
-    _followed: Optional[bool] = None
     id: Optional[int] = None
-
-    # TODO: What is an author without papers? :)
-    # _papers: Optional[List[Paper]] = None
+    _followed: Optional[bool] = None
+    _papers: Optional[PaperList] = None
 
     def __post_init__(self):
         _id = xxh3_64_hexdigest(self.__hstr())  # f"{self.__hash__():x}"
@@ -48,8 +59,12 @@ class Author:
     def followed(self):
         return self._followed
 
+    @property
+    def papers(self):
+        return self._papers
+
     @staticmethod
-    def normalize_author_name(name: str) -> Tuple[str, str, Optional[str]]:
+    def normalize_author_name(name: str) -> tuple[str, str, str]:
         """Copyright 2017 Cornell University
 
         Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -148,9 +163,9 @@ class Author:
 class PaperMeta:
     title: str
     abstract: str
-    authors: List[Author]
+    authors: list[Author]
     version: int
-    categories: List[str]
+    categories: list[str]
 
 
 class Paper:
@@ -199,12 +214,6 @@ class Paper:
         return NotImplemented
 
 
-@dataclass
-class AuthoredPapers:
-    author: Author
-    papers: List[Paper]
-
-
 #  persistence layer
 
 
@@ -250,26 +259,39 @@ class AuthorDB(Repository[Author]):
     def get(self, id: str) -> Author:
         res = self.db(Q.get_author, {"id": id}).fetchone()
         _id, last, other, suffix, followed = res
-        return Author(last, other, suffix, followed, _id)
+        return Author(last, other, suffix, _id, followed)
 
-    def get_followees(self) -> List[Author]:
+    # TODO: starting_date seems the wrong name
+    def get_papers_(self, author: Author, starting_date: str) -> Author:
+        """Retrieves the author's papers."""
+        csr = self.db(
+            Q.get_papers_by_author_id,
+            {"aid": author.id, "starting_date": starting_date},
+        )
+        res = csr.fetchall()
+
+        author._papers = [] if author._papers is None else author._papers
+        for pid, updated, created, meta in res:
+            meta = PaperMeta(**json.loads(meta))
+            author._papers.append(Paper(pid, created, updated, meta))
+        return author
+
+    def get_followees(self) -> set[Author]:
         res = self.db(Q.get_followed, {}).fetchall()
-        return [
-            Author(last, other, sfx, flwd, id) for id, last, other, sfx, flwd in res
-        ]
+        return set([Author(l, o, s, i, f) for i, l, o, s, f in res])
 
     def save(self, author: Author) -> None:
         self.db(Q.add_author, author.dict())
 
     def update(self, author: Author):
         """Only update that can happen is follow/unfollow."""
-        self.db(Q.follow_author, {"id": author.id, "followed": int(author._followed)})
+        self.db(Q.follow_author, {"id": author.id, "followed": int(author.followed)})
 
     def exists(self, author: Author) -> bool:
         csr = self.db(Q.is_author, {"id": author.id})
         return bool(csr.fetchone()[0])
 
-    def query_if_followed(self, author: Author) -> Author:
+    def is_followed_(self, author: Author) -> Author:
         if not self.exists(author):
             return author
         author._followed = bool(self.db(Q.is_followed, {"id": author.id}).fetchone()[0])
@@ -281,26 +303,7 @@ class AuthorDB(Repository[Author]):
     def count_followees(self) -> int:
         return self.db(Q.count_followed, {}).fetchone()[0]
 
-    def get_papers(self, author: Author, starting_date: str) -> AuthoredPapers:
-        """The reason we did all this.
-        TODO: what's the place of this query?
-        """
-        csr = self.db(
-            Q.get_papers_by_author_id,
-            {"aid": author.id, "starting_date": starting_date},
-        )
-        res = csr.fetchall()
-
-        if not res:
-            return AuthoredPapers(author, [])
-
-        papers = []
-        for pid, updated, created, meta in res:
-            meta = PaperMeta(**json.loads(meta))
-            papers.append(Paper(pid, created, updated, meta))
-        return AuthoredPapers(author, papers)
-
-    def search(self, searched: str) -> Set[Author]:
+    def search(self, searched: str) -> set[Author]:
         last, other, suffix = Author.normalize_author_name(searched)
         log.debug("DB search %s, %s, %s", last, other, suffix)
 
@@ -314,7 +317,7 @@ class AuthorDB(Repository[Author]):
         if not res:
             return set()
         # aid, last name, other names, suffix
-        authors = set(sorted([Author(r[1], r[2], r[3], id=r[0]) for r in res]))
+        authors = set(sorted([Author(r[1], r[2], r[3], r[0], bool(r[4])) for r in res]))
         return authors
 
 
@@ -364,7 +367,7 @@ class AuthorArxiv(Repository[Author]):
         return q.replace("'", "\\")  # "d'Oro -> d\Oro"
 
     @staticmethod
-    def search(searched: str, max_results=100) -> List[AuthoredPapers]:
+    def search(searched: str, max_results=100) -> set[Author]:
         """Search the arXiv api for matching authors."""
         last, other, suffix = Author.normalize_author_name(searched)
         query = " AND ".join([n for n in (last, other, suffix) if n])
@@ -383,14 +386,16 @@ class AuthorArxiv(Repository[Author]):
         )
 
         # extract the set of authors that match
-        matches: Mapping[Author, List[Paper]] = defaultdict(list)
+        matches: dict[Author, PaperList] = defaultdict(list)
         for _paper in res:
             for _author in _paper.authors:
                 author = Author.from_string(_author.name)
                 # match by last name
                 if last in str(author):
                     matches[author].append(PaperArxiv._cast(_paper))
-        return [AuthoredPapers(author, papers) for author, papers in matches.items()]
+        for author, papers in matches.items():
+            author._papers = papers
+        return set(matches.keys())
 
 
 class PaperArxiv(Repository[Paper]):

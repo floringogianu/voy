@@ -17,8 +17,6 @@ log = logging.getLogger("voy")
 
 
 def show(opt: "Show") -> None:
-    followee_papers = []
-
     with Storage() as db:
         if opt.author:  # fetch for one author
             authors = AuthorDB(db).search(" ".join(opt.author))
@@ -26,20 +24,19 @@ def show(opt: "Show") -> None:
                 V.info(f"Found no author {opt.author}")
                 return
             for author in authors:
-                if papers := AuthorDB(db).get_papers(author, opt.since):
-                    followee_papers.append(papers)
+                AuthorDB(db).get_papers_(author, opt.since)
         else:  # fetch for all followees
-            for followee in AuthorDB(db).get_followees():
-                if papers := AuthorDB(db).get_papers(followee, opt.since):
-                    followee_papers.append(papers)
+            authors = AuthorDB(db).get_followees()
+            for followee in authors:
+                AuthorDB(db).get_papers_(followee, opt.since)
 
     # list papers
-    followee_papers = sorted(followee_papers, key=lambda pl: pl.author.other_names)
+    sorted_authors = sorted(authors, key=lambda author: author.other_names)
     if opt.by_author or opt.author:
-        for papers in followee_papers:
-            V.author_paper_list(papers, opt.num, opt.coauthors, opt.url)
+        for author in sorted_authors:
+            V.author_paper_list(author, opt.num, opt.coauthors, opt.url)
     else:
-        V.latest_papers(followee_papers, opt.num, opt.coauthors, opt.url)
+        V.latest_papers(sorted_authors, opt.num, opt.coauthors, opt.url)
 
 
 def search_author_in_db(searched: Sequence[str]) -> None:
@@ -63,14 +60,13 @@ def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
 def follow(opt) -> None:
     log.debug(opt)
     with Storage() as db:
-        # TODO: handle the cases of multiple or no authors
-        result = AuthorDB(db).search(" ".join(opt.author))
+        result: list = list(AuthorDB(db).search(" ".join(opt.author)))
         match result:
             case []:
                 V.info(f"{opt.author} not in the database, try variations of the name.")
             case [author]:
                 # TODO: checking status like this is ugly, there must be a better way
-                if AuthorDB(db).query_if_followed(author).followed:
+                if AuthorDB(db).is_followed_(author).followed:
                     V.info(f"{author} already followed.")
                     return
                 author._followed = True
@@ -81,8 +77,8 @@ def follow(opt) -> None:
                 V.info(f"{author} followed.")
                 print(f"Following {len(followed)} authors.")
             case [*authors]:
-                V.info(f"Multiple matches for {opt.author}:")
                 V.author_list(authors)
+                V.info(f"\nMultiple matches for {opt.author}.")
                 V.info("Try again with one of the authors above.")
             case _:
                 log.error(f"pattern matching failed for {opt.author} -> {result}.")
@@ -91,13 +87,13 @@ def follow(opt) -> None:
 def unfollow(opt) -> None:
     log.debug(opt)
     with Storage() as db:
-        result = AuthorDB(db).search(" ".join(opt.author))
+        result: list = list(AuthorDB(db).search(" ".join(opt.author)))
         match result:
             case []:
                 V.info(f"{opt.author} not in the database.")
             case [author]:
                 # TODO: checking status like this is ugly, there must be a better way
-                if not AuthorDB(db).query_if_followed(author).followed:
+                if not AuthorDB(db).is_followed_(author).followed:
                     V.info(f"{author} not followed.")
                     return
                 author._followed = False
