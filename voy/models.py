@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
-from typing import List, Optional, Tuple
+from typing import List, Mapping, Optional, Set, Tuple
 
+import arxiv
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
 
 from . import query as Q
@@ -16,6 +19,7 @@ from .storage import Storage
 log = logging.getLogger("voy")
 
 PREFIX_MATCH = "van|der|de|la|von|del|della|da|mac|ter|dem|di|vaziri"
+CATS = "cat:cs.CV OR cat:cs.LG OR cat:cs.CL OR cat:cs.AI OR cat:cs.NE OR cat:cs.RO"
 
 
 @dataclass
@@ -296,7 +300,7 @@ class AuthorDB(Repository[Author]):
             papers.append(Paper(pid, created, updated, meta))
         return AuthoredPapers(author, papers)
 
-    def search(self, searched: str) -> List[Author]:
+    def search(self, searched: str) -> Set[Author]:
         last, other, suffix = Author.normalize_author_name(searched)
         log.debug("DB search %s, %s, %s", last, other, suffix)
 
@@ -308,9 +312,9 @@ class AuthorDB(Repository[Author]):
             res = csr.fetchall()
 
         if not res:
-            return []
+            return set()
         # aid, last name, other names, suffix
-        authors = sorted([Author(r[1], r[2], r[3], id=r[0]) for r in res])
+        authors = set(sorted([Author(r[1], r[2], r[3], id=r[0]) for r in res]))
         return authors
 
 
@@ -350,3 +354,63 @@ class PaperDB(Repository[Paper]):
     def last(self, col: str = "created") -> Paper:
         res = self.db(Q.last_paper_by.format(col=col), {}).fetchone()
         return self._from_res(res)
+
+
+class AuthorArxiv(Repository[Author]):
+    """Implements arXiv Author rest layer."""
+
+    @staticmethod
+    def _sanitize(q: str) -> str:
+        return q.replace("'", "\\")  # "d'Oro -> d\Oro"
+
+    @staticmethod
+    def search(searched: str, max_results=100) -> List[AuthoredPapers]:
+        """Search the arXiv api for matching authors."""
+        last, other, suffix = Author.normalize_author_name(searched)
+        query = " AND ".join([n for n in (last, other, suffix) if n])
+        query = AuthorArxiv._sanitize(query)
+        query = f"({CATS}) AND (au:{query})"
+
+        log.debug("arxiv search %s, %s, %s", last, other, suffix)
+        log.debug("arxiv query: %s", query)
+
+        res = arxiv.Client().results(
+            arxiv.Search(
+                query,
+                sort_by=arxiv.SortCriterion.LastUpdatedDate,
+                max_results=max_results,
+            )
+        )
+
+        # extract the set of authors that match
+        matches: Mapping[Author, List[Paper]] = defaultdict(list)
+        for _paper in res:
+            for _author in _paper.authors:
+                author = Author.from_string(_author.name)
+                # match by last name
+                if last in str(author):
+                    matches[author].append(PaperArxiv._cast(_paper))
+        return [AuthoredPapers(author, papers) for author, papers in matches.items()]
+
+
+class PaperArxiv(Repository[Paper]):
+    """Implements arXiv Author rest layer."""
+
+    @staticmethod
+    def _cast(paper: arxiv.Result) -> Paper:
+        pid, version = paper.entry_id.split("/")[-1].split("v")
+
+        return Paper(
+            id=pid,
+            created=time.strftime(Paper.DATE_FMT, paper._raw.published_parsed),
+            updated=time.strftime(Paper.DATE_FMT, paper._raw.updated_parsed),
+            meta=PaperMeta(
+                title=paper.title,
+                abstract=paper.summary,
+                authors=[
+                    Author(*Author.normalize_author_name(a.name)) for a in paper.authors
+                ],
+                version=version,
+                categories=paper.categories,
+            ),
+        )

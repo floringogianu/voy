@@ -9,7 +9,7 @@ from typing import Optional, Sequence, Union
 from datargs import arg, argsclass, parse
 
 from . import views as V
-from .models import AuthorDB, Paper, PaperDB
+from .models import AuthorArxiv, AuthorDB, Paper, PaperDB
 from .storage import Storage
 from .update import from_arxiv_api, from_json
 
@@ -42,10 +42,22 @@ def show(opt: "Show") -> None:
         V.latest_papers(followee_papers, opt.num, opt.coauthors, opt.url)
 
 
-def search_author(searched: Sequence[str]) -> None:
+def search_author_in_db(searched: Sequence[str]) -> None:
     with Storage() as db:
         authors = AuthorDB(db).search(" ".join(searched))
     V.author_list(authors)
+
+
+def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
+    res = AuthorArxiv.search(" ".join(searched), max_results)
+    for apl in res:
+        V.author_paper_list(apl, 3, False, False)
+    if max_results > 0:
+        V.info(
+            f"\nRestricted to a total of {max_results:n} entries. "
+            + "Authors might be omitted. "
+            + "Use option `--max 0` to show all author matches."
+        )
 
 
 def follow(opt) -> None:
@@ -268,7 +280,8 @@ def main() -> None:
             args.action.author or args.action.paper
         ), "Either search for authors or you search for papers."
         if args.action.author:
-            search_author(args.action.author)
+            search_author_in_arxiv(args.action.author)
+            # search_author_in_db(args.action.author)
         else:
             raise ValueError("No implementation for ", args)
 
