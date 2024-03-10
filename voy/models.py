@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
 from typing import List, Optional, Tuple
@@ -19,20 +20,17 @@ class Author:
     last_name: str
     other_names: str
     name_suffix: Optional[str] = ""
-    followed: Optional[bool] = False
+    _followed: Optional[bool] = None
     id: Optional[int] = None
-    # foreign
-    _papers: Optional[List[Paper]] = None
+
+    # TODO: What is an author without papers? :)
+    # _papers: Optional[List[Paper]] = None
 
     def __post_init__(self):
         _id = xxh3_64_hexdigest(self.__hstr())  # f"{self.__hash__():x}"
         if self.id is None:
             self.id = _id
         assert self.id == _id, f"id mismatch: self._id={self.id}, computed={_id}"
-        # TODO not sure how to go about this stuff...
-        with Storage() as db:
-            if self.exists(db):
-                self.followed = bool(db(Q.is_followed, {"id": self.id}).fetchone()[0])
 
     @classmethod
     def from_string(cls, string: str) -> Author:
@@ -40,53 +38,8 @@ class Author:
         return cls(last, other, suffix)
 
     @property
-    def papers(self):
-        return self._papers
-
-    @classmethod
-    def get(cls, id_: str, db: Storage) -> Author:
-        res = db(Q.get_author, {"id": id_}).fetchone()
-        _id, last, other, suffix, followed = res
-        return cls(last, other, suffix, followed, _id)
-
-    @classmethod
-    def get_all_followed(cls, db: Storage) -> List[Author]:
-        res = db(Q.get_followed, {}).fetchall()
-        return [cls(last, other, sfx, flwd, id_) for id_, last, other, sfx, flwd in res]
-
-    def exists(self, db):
-        csr = db(Q.is_author, {"id": self.id})
-        return bool(csr.fetchone()[0])
-
-    def save(self, db):
-        db(Q.add_author, self.dict())
-
-    def update(self, db):
-        """Only update that can happen is follow/unfollow."""
-        db(Q.follow_author, {"id": self.id, "followed": int(self.followed)})
-
-    def get_papers(self, db: Storage, starting_date: str) -> AuthoredPapers:
-        """The reason we did all this.
-        TODO: what's the place of this query?
-        """
-        csr = db(
-            Q.get_papers_by_author_id, {"aid": self.id, "starting_date": starting_date}
-        )
-        res = csr.fetchall()
-        if not res:
-            return AuthoredPapers(self, [])
-
-        self._papers = []
-        for pid, updated, created, meta in res:
-            meta = PaperMeta(**json.loads(meta))
-            self._papers.append(Paper(pid, created, updated, meta))
-        return AuthoredPapers(self, self._papers)
-
-    @classmethod
-    def count(cls, db, followed=False):
-        if followed:
-            return db(Q.count_followed, {}).fetchone()[0]
-        return db(Q.count_author, {}).fetchone()[0]
+    def followed(self):
+        return self._followed
 
     @staticmethod
     def normalize_author_name(name: str) -> Tuple[str, str, Optional[str]]:
@@ -184,6 +137,15 @@ class Author:
         return format(str(self), format_spec)
 
 
+@dataclass
+class PaperMeta:
+    title: str
+    abstract: str
+    authors: List[Author]
+    version: int
+    categories: List[str]
+
+
 class Paper:
     DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
@@ -207,23 +169,6 @@ class Paper:
             self.created <= self.updated
         ), f"Can't update before publishing:\n{repr(self)}."
 
-    @classmethod
-    def get(cls, id_, db):
-        res = db(Q.get_paper, {"id": id_}).fetchone()
-        return Paper._from_res(res)
-
-    def exists(self, db):
-        csr = db(Q.is_paper, {"id": self.id})
-        return bool(csr.fetchone()[0])
-
-    def save(self, db):
-        d = self.dict()
-        db(Q.add_paper, {**d, "meta": json.dumps(d["meta"])})
-
-    def update(self, db):
-        d = self.dict()
-        db(Q.update_paper, {**d, "meta": json.dumps(d["meta"])})
-
     def dict(self):
         d = {k: v for k, v in self.__dict__.items() if k[0] != "_"}
         return {**d, "meta": asdict(self.meta)}
@@ -238,21 +183,6 @@ class Paper:
     def __format__(self, format_spec):
         return format(str(self), format_spec)
 
-    @classmethod
-    def count(cls, db):
-        return db(Q.count_paper, {}).fetchone()[0]
-
-    @classmethod
-    def last(cls, db, col="created"):
-        res = db(Q.last_paper_by.format(col=col), {}).fetchone()
-        return Paper._from_res(res)
-
-    @staticmethod
-    def _from_res(res):
-        id_, updated, created, meta = res
-        meta = PaperMeta(**json.loads(meta))
-        return Paper(id_, created, updated, meta)
-
     def __hash__(self) -> int:
         return hash(self.id)
 
@@ -263,15 +193,140 @@ class Paper:
 
 
 @dataclass
-class PaperMeta:
-    title: str
-    abstract: str
-    authors: List[Author]
-    version: int
-    categories: List[str]
-
-
-@dataclass
 class AuthoredPapers:
     author: Author
     papers: List[Paper]
+
+
+#  persistence layer
+
+
+class Repository[T](ABC):
+    @abstractmethod
+    def get(self, id: str) -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save(self, model: T) -> None:
+        # TODO: should return something?
+        raise NotImplementedError
+
+    @abstractmethod
+    def update(self, model: T) -> None:
+        # TODO: should return something?
+        raise NotImplementedError
+
+    @abstractmethod
+    def exists(self, model: T) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def count(self) -> int:
+        raise NotImplementedError
+
+
+class AuthorDB(Repository[Author]):
+    """Implements SQLite Author persistence layer.
+
+    It is meant to be used with a context manager:
+
+    ```
+    with Storage() as db:
+        AuthorDB(db).get_papers(author)
+    ```
+    """
+
+    def __init__(self, db: Storage) -> None:
+        super().__init__()
+        self.db = db
+
+    def get(self, id: str) -> Author:
+        res = self.db(Q.get_author, {"id": id}).fetchone()
+        _id, last, other, suffix, followed = res
+        return Author(last, other, suffix, followed, _id)
+
+    def get_followees(self) -> List[Author]:
+        res = self.db(Q.get_followed, {}).fetchall()
+        return [
+            Author(last, other, sfx, flwd, id) for id, last, other, sfx, flwd in res
+        ]
+
+    def save(self, author: Author) -> None:
+        self.db(Q.add_author, author.dict())
+
+    def update(self, author: Author):
+        """Only update that can happen is follow/unfollow."""
+        self.db(Q.follow_author, {"id": author.id, "followed": int(author._followed)})
+
+    def exists(self, author: Author) -> bool:
+        csr = self.db(Q.is_author, {"id": author.id})
+        return bool(csr.fetchone()[0])
+
+    def query_if_followed(self, author: Author) -> Author:
+        if not self.exists(author):
+            return author
+        author._followed = bool(self.db(Q.is_followed, {"id": author.id}).fetchone()[0])
+        return author
+
+    def count(self) -> int:
+        return self.db(Q.count_author, {}).fetchone()[0]
+
+    def count_followees(self) -> int:
+        return self.db(Q.count_followed, {}).fetchone()[0]
+
+    def get_papers(self, author: Author, starting_date: str) -> AuthoredPapers:
+        """The reason we did all this.
+        TODO: what's the place of this query?
+        """
+        csr = self.db(
+            Q.get_papers_by_author_id,
+            {"aid": author.id, "starting_date": starting_date},
+        )
+        res = csr.fetchall()
+
+        if not res:
+            return AuthoredPapers(author, [])
+
+        papers = []
+        for pid, updated, created, meta in res:
+            meta = PaperMeta(**json.loads(meta))
+            papers.append(Paper(pid, created, updated, meta))
+        return AuthoredPapers(author, papers)
+
+
+class PaperDB(Repository[Paper]):
+    """Implements SQLite Paper persistence layer."""
+
+    def __init__(self, db: Storage) -> None:
+        super().__init__()
+        self.db = db
+
+    @staticmethod
+    def _from_res(res):
+        """Helper method that initializes a Paper."""
+        id_, updated, created, meta = res
+        meta = PaperMeta(**json.loads(meta))
+        return Paper(id_, created, updated, meta)
+
+    def get(self, id: str) -> Paper:
+        res = self.db(Q.get_paper, {"id": id}).fetchone()
+        return self._from_res(res)
+
+    def exists(self, paper: Paper) -> bool:
+        csr = self.db(Q.is_paper, {"id": paper.id})
+        return bool(csr.fetchone()[0])
+
+    def save(self, paper: Paper) -> None:
+        data = paper.dict()
+        self.db(Q.add_paper, {**data, "meta": json.dumps(data["meta"])})
+
+    def update(self, paper: Paper) -> None:
+        data = paper.dict()
+        self.db(Q.update_paper, {**data, "meta": json.dumps(data["meta"])})
+
+    def count(self) -> int:
+        return self.db(Q.count_paper, {}).fetchone()[0]
+
+    def last(self, col: str = "created") -> Paper:
+        res = self.db(Q.last_paper_by.format(col=col), {}).fetchone()
+        return self._from_res(res)

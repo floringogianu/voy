@@ -10,7 +10,7 @@ from datargs import arg, argsclass, parse
 
 from . import query as Q
 from . import views as V
-from .models import Author, Paper
+from .models import Author, AuthorDB, Paper, PaperDB
 from .storage import Storage
 from .update import from_arxiv_api, from_json
 
@@ -27,11 +27,11 @@ def show(opt: "Show") -> None:
                 V.info(f"Found no author {opt.author}")
                 return
             for author in authors:
-                if papers := author.get_papers(db, opt.since):
+                if papers := AuthorDB(db).get_papers(author, opt.since):
                     followee_papers.append(papers)
         else:  # fetch for all followees
-            for followee in Author.get_all_followed(db):
-                if papers := followee.get_papers(db, opt.since):
+            for followee in AuthorDB(db).get_followees():
+                if papers := AuthorDB(db).get_papers(followee, opt.since):
                     followee_papers.append(papers)
 
     # list papers
@@ -69,7 +69,7 @@ def search_author(
     return authors
 
 
-def follow(opt):
+def follow(opt) -> None:
     log.debug(opt)
     with Storage() as db:
         # TODO: handle the cases of multiple or no authors
@@ -78,14 +78,16 @@ def follow(opt):
             case []:
                 V.info(f"{opt.author} not in the database, try variations of the name.")
             case [author]:
-                if author.followed:
+                # TODO: checking status like this is ugly, there must be a better way
+                if AuthorDB(db).query_if_followed(author).followed:
                     V.info(f"{author} already followed.")
                     return
-                author.followed = True
-                author.update(db)
+                author._followed = True
+                AuthorDB(db).update(author)
                 db.commit()
-                followed = Author.get_all_followed(db)
+                followed = AuthorDB(db).get_followees()
                 V.author_list(followed)
+                V.info(f"{author} followed.")
                 print(f"Following {len(followed)} authors.")
             case [*authors]:
                 V.info(f"Multiple matches for {opt.author}:")
@@ -95,7 +97,7 @@ def follow(opt):
                 log.error(f"pattern matching failed for {opt.author} -> {result}.")
 
 
-def unfollow(opt):
+def unfollow(opt) -> None:
     log.debug(opt)
     with Storage() as db:
         result = search_author(opt.author, view=False)
@@ -103,18 +105,19 @@ def unfollow(opt):
             case []:
                 V.info(f"{opt.author} not in the database.")
             case [author]:
-                if not author.followed:
+                # TODO: checking status like this is ugly, there must be a better way
+                if not AuthorDB(db).query_if_followed(author).followed:
                     V.info(f"{author} not followed.")
                     return
-                author.followed = False
-                author.update(db)
+                author._followed = False
+                AuthorDB(db).update(author)
                 db.commit()
-                V.info(f"{author} unfollowed.")
-                followed = Author.get_all_followed(db)
+                followed = AuthorDB(db).get_followees()
                 V.author_list(followed)
+                V.info(f"{author} unfollowed.")
                 V.info(f"Now following {len(followed)} authors.")
             case [*authors]:
-                followed = Author.get_all_followed(db)
+                followed = AuthorDB(db).get_followees()
                 hits_in_followed = sorted([a for a in authors if a in followed])
                 V.info(f"Multiple matches for {opt.author}, out of which you follow:")
                 V.author_list(hits_in_followed)
@@ -124,17 +127,17 @@ def unfollow(opt):
                 log.error(f"pattern matching failed for {opt.author} -> {result}.")
 
 
-def info(opt):
+def info(opt) -> None:
     # TODO make a proper info view
     # maybe show last index
     cnts = {}
     with Storage() as db:
         cnts = {
-            "papers": Paper.count(db),
-            "authors": Author.count(db),
-            "followed": Author.count(db, followed=True),
+            "papers": PaperDB(db).count(),
+            "authors": AuthorDB(db).count(),
+            "followed": AuthorDB(db).count_followees(),
         }
-        followed = sorted(Author.get_all_followed(db))
+        followed = sorted(AuthorDB(db).get_followees())
 
     if followed:
         print("Following: ")
@@ -144,7 +147,7 @@ def info(opt):
     for k, v in cnts.items():
         print(f"{k:16}{v:,}")
     with Storage() as db:
-        last = Paper.last(db)
+        last = PaperDB(db).last()
     print(
         "Last paper:\n[{}] {}".format(
             last.updated.split(" ")[0],
@@ -155,12 +158,11 @@ def info(opt):
         V.info("\nStart following authors with `voy add`.")
 
 
-def export(opt):
+def export(opt) -> None:
     with Storage() as db:
-        followed = Author.get_all_followed(db)
+        followed = AuthorDB(db).get_followees()
     with open(opt.path, mode="w") as f:
         writer = csv.writer(f, delimiter=",", quotechar='"')
-
         for author in followed:
             writer.writerow([author.id, author.last_name, author.other_names])
 
@@ -246,9 +248,7 @@ class Info:
 
 @argsclass
 class Export:
-    path: Sequence[Path] = arg(
-        default=Path.cwd() / "voy.csv", positional=True, help="some path"
-    )
+    path: Path = arg(default=Path.cwd() / "voy.csv", positional=True, help="some path")
 
 
 @argsclass
@@ -279,7 +279,8 @@ def main() -> None:
             from_arxiv_api(args.action)
         else:
             V.info(
-                "Either update from arXiv API or from kaggle json. See `voy update --help`."
+                "Either update from arXiv API or from kaggle json. "
+                + "See `voy update --help`.",
             )
 
     # search

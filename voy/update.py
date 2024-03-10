@@ -10,7 +10,7 @@ from . import CATEGORIES
 from . import query as Q
 from . import views as V
 from .lib.arxiv import get_response, parse_response
-from .models import Author, Paper, PaperMeta
+from .models import Author, AuthorDB, Paper, PaperDB, PaperMeta
 from .storage import Storage
 
 BATCH_SIZE = 100
@@ -18,7 +18,7 @@ BATCH_SIZE = 100
 log = logging.getLogger("voy")
 
 
-def from_json(opt):
+def from_json(opt) -> None:
     """Uses Kaggle dataset."""
 
     def arxiv2sqlite_datetime(ts):
@@ -47,12 +47,12 @@ def from_json(opt):
                     ),
                 )
                 # add the paper
-                paper.save(db)
+                PaperDB(db).save(paper)
 
                 # add all the authors
                 for author in paper.meta.authors:
-                    if not author.exists(db):
-                        author.save(db)
+                    if not AuthorDB(db).exists(author):
+                        AuthorDB(db).save(author)
 
                     # add the relationship
                     db(Q.add_authorship, {"author_id": author.id, "paper_id": paper.id})
@@ -62,14 +62,14 @@ def from_json(opt):
 
             if jid % 100_000 == 0 and jid != 0:
                 delta = time.time() - t0
-                paper_num, author_num = Paper.count(db), Author.count(db)
+                paper_num, author_num = PaperDB(db).count(), AuthorDB(db).count()
                 V.info(
                     "[{:7d}] papers={:6d}, authors={:6d}  |  {:6.1f} i/s.".format(
                         jid, paper_num, author_num, paper_num / delta
                     )
                 )
-    V.info("Papers:  ", Paper.count(db))
-    V.info("Authors: ", Author.count(db))
+    V.info(f"Papers:  {PaperDB(db).count():n}")
+    V.info(f"Authors: , {AuthorDB(db).count():n}")
     db.close()
 
 
@@ -105,7 +105,7 @@ def fetch_batch(query, start_idx, max_tries=5):
             return sorted(papers, key=lambda p: p.updated)
 
 
-def from_arxiv_api(opt):
+def from_arxiv_api(opt) -> None:
     """Uses arXiv AIP."""
     db = Storage()
     query = "+OR+".join([f"cat:{cat}" for cat in CATEGORIES])
@@ -121,15 +121,15 @@ def from_arxiv_api(opt):
             sys.exit()
 
         for paper in papers:
-            if paper.exists(db):
-                old = Paper.get(paper.id, db)
+            if PaperDB(db).exists(paper):
+                old = PaperDB(db).get(paper.id)
                 if old.meta.version == paper.meta.version:
                     old_cnt += 1
 
                 elif old.meta.version < paper.meta.version:
                     # update
-                    # TODO should check if authors are the same too :(
-                    paper.update(db)
+                    # TODO: should check if authors are the same too :(
+                    PaperDB(db).update(paper)
                     upd_cnt += 1
                 else:
                     log.error("Paper version can either be higher or the same.")
@@ -138,8 +138,8 @@ def from_arxiv_api(opt):
                 paper.save(db)
                 # add the authors now
                 for author in paper.meta.authors:
-                    if not author.exists(db):
-                        author.save(db)
+                    if not AuthorDB(db).exists(author):
+                        AuthorDB(db).save(author)
 
                     # add the relationship
                     db(Q.add_authorship, {"author_id": author.id, "paper_id": paper.id})
