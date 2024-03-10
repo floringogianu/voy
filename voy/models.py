@@ -180,6 +180,9 @@ class Author:
         last, other, sfx = self.last_name, self.other_names, self.name_suffix
         return f"{other} {last} {sfx}" if sfx else f"{other} {last}"
 
+    def __format__(self, format_spec):
+        return format(str(self), format_spec)
+
 
 class Paper:
     DATE_FMT = "%Y-%m-%d %H:%M:%S"
@@ -231,6 +234,9 @@ class Paper:
     def __repr__(self) -> str:
         body = ", ".join([f"{k}={v}" for k, v in self.__dict__.items()])
         return f"Paper({body})"
+
+    def __format__(self, format_spec):
+        return format(str(self), format_spec)
 
     @classmethod
     def count(cls, db):
