@@ -45,6 +45,8 @@ class Author:
     _papers: Optional[PaperList] = None
 
     def __post_init__(self):
+        assert self.last_name.strip(), "Author should have a last name."
+        assert self.other_names.strip(), "Author should have a first name."
         _id = xxh3_64_hexdigest(self.__hstr())  # f"{self.__hash__():x}"
         if self.id is None:
             self.id = _id
@@ -121,6 +123,10 @@ class Author:
             author_entry = (name, "", "")
 
         return author_entry
+
+    @property
+    def names(self) -> tuple:
+        return self.normalize_author_name(str(self))
 
     def dict(self):
         return {k: v for k, v in self.__dict__.items() if k[0] != "_"}
@@ -359,7 +365,15 @@ class PaperDB(Repository[Paper]):
         return self._from_res(res)
 
 
-class AuthorArxiv(Repository[Author]):
+class Rest[T](ABC):
+    """A REST interface."""
+
+    @abstractmethod
+    def search(self, searched: str, max_results: int) -> set[T]:
+        raise NotImplementedError
+
+
+class AuthorArxiv(Rest[Author]):
     """Implements arXiv Author rest layer."""
 
     @staticmethod
@@ -367,15 +381,20 @@ class AuthorArxiv(Repository[Author]):
         return q.replace("'", "\\")  # "d'Oro -> d\Oro"
 
     @staticmethod
-    def search(searched: str, max_results=100) -> set[Author]:
-        """Search the arXiv api for matching authors."""
-        last, other, suffix = Author.normalize_author_name(searched)
+    def _make_query(last: str, other: str, suffix: str) -> str:
         query = " AND ".join([n for n in (last, other, suffix) if n])
         query = AuthorArxiv._sanitize(query)
         query = f"({CATS}) AND (au:{query})"
 
         log.debug("arxiv search %s, %s, %s", last, other, suffix)
         log.debug("arxiv query: %s", query)
+        return query
+
+    @staticmethod
+    def search(searched: str, max_results=100) -> set[Author]:
+        """Search the arXiv api for matching authors."""
+        last, other, suffix = Author.normalize_author_name(searched)
+        query = AuthorArxiv._make_query(last, other, suffix)
 
         res = arxiv.Client().results(
             arxiv.Search(
@@ -384,7 +403,6 @@ class AuthorArxiv(Repository[Author]):
                 max_results=max_results,
             )
         )
-
         # extract the set of authors that match
         matches: dict[Author, PaperList] = defaultdict(list)
         for _paper in res:
@@ -395,11 +413,32 @@ class AuthorArxiv(Repository[Author]):
                     matches[author].append(PaperArxiv._cast(_paper))
         for author, papers in matches.items():
             author._papers = papers
+        log.info(f"got {len(matches):n} matches.")
         return set(matches.keys())
 
+    @staticmethod
+    def get_papers_(author: Author) -> Author:
+        query = AuthorArxiv._make_query(*author.names)
 
-class PaperArxiv(Repository[Paper]):
+        res = arxiv.Client().results(
+            arxiv.Search(
+                query,
+                sort_by=arxiv.SortCriterion.LastUpdatedDate,
+                max_results=None,
+            )
+        )
+        author._papers = [] if author._papers is None else author._papers
+        for _paper in res:
+            author._papers.append(PaperArxiv._cast(_paper))
+        log.info(f"got {len(author._papers):n} papers for {author:s}.")
+        return author
+
+
+class PaperArxiv(Rest[Paper]):
     """Implements arXiv Author rest layer."""
+
+    def search(self, searched: str, max_results: int) -> set[Paper]:
+        return super().search(searched, max_results)
 
     @staticmethod
     def _cast(paper: arxiv.Result) -> Paper:
