@@ -8,10 +8,11 @@ from typing import Optional, Sequence, Union
 
 from datargs import arg, argsclass, parse
 
+from . import query as Q
 from . import views as V
 from .models import AuthorArxiv, AuthorDB, Paper, PaperDB
+from .seed import from_json
 from .storage import Storage
-from .update import from_arxiv_api, from_json
 
 log = logging.getLogger("voy")
 
@@ -49,7 +50,7 @@ def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
     res = AuthorArxiv.search(" ".join(searched), max_results)
     for apl in res:
         V.author_paper_list(apl, 3, False, False)
-    if max_results > 0:
+    if max_results:
         V.info(
             f"\nRestricted to a total of {max_results:n} entries. "
             + "Authors might be omitted. "
@@ -57,24 +58,73 @@ def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
         )
 
 
+def update(opt) -> None:
+    with Storage() as db:
+        followees = AuthorDB(db).get_followees()
+
+    V.info(f"Updating {len(followees):n} authors you follow.")
+
+    new_cnt, old_cnt, upd_cnt = 0, 0, 0
+    db = Storage()
+    for author in followees:
+        AuthorArxiv.get_papers_(author)
+        print(f" {author:24s}  |  {len(author.papers):3d} papers.", end="\r")
+        for paper in author.papers:
+            if PaperDB(db).exists(paper):
+                old = PaperDB(db).get(paper.id)
+                if old.meta.version == paper.meta.version:
+                    old_cnt += 1
+                elif old.meta.version < paper.meta.version:
+                    PaperDB(db).update(paper)
+                    upd_cnt += 1
+                else:
+                    log.error("Paper version can either be higher or the same.")
+            else:
+                # add paper
+                PaperDB(db).save(paper)
+                # and authors
+                for author in paper.meta.authors:
+                    if not AuthorDB(db).exists(author):
+                        author._followed = False
+                        AuthorDB(db).save(author)
+
+                    # add the relationship.
+                    # TODO: where should this one stay :)
+                    db(Q.add_authorship, {"author_id": author.id, "paper_id": paper.id})
+                new_cnt += 1
+            # write to database
+            db.commit()
+    db.close()
+
+    print("\x1b[2K", end="\r")  # clean line
+    V.info("{:n} old, {:,} new, {:,} updated.".format(old_cnt, new_cnt, upd_cnt))
+
+
 def follow(opt) -> None:
     log.debug(opt)
+    result: list = list(AuthorArxiv.search(" ".join(opt.author)))
     with Storage() as db:
-        result: list = list(AuthorDB(db).search(" ".join(opt.author)))
+        # TODO: this pattern matching is not order invariant :(
         match result:
             case []:
-                V.info(f"{opt.author} not in the database, try variations of the name.")
+                V.info(f"{opt.author} not found on arXiv, try variations of the name.")
             case [author]:
                 # TODO: checking status like this is ugly, there must be a better way
-                if AuthorDB(db).is_followed_(author).followed:
-                    V.info(f"{author} already followed.")
-                    return
-                author._followed = True
-                AuthorDB(db).update(author)
+                if AuthorDB(db).exists(author):
+                    if AuthorDB(db).is_followed_(author).followed:
+                        V.info(f"{author} already followed.")
+                        return
+                    else:
+                        author._followed = True
+                        AuthorDB(db).update(author)
+                else:
+                    author._followed = True
+                    AuthorDB(db).save(author)
                 db.commit()
+
                 followed = AuthorDB(db).get_followees()
                 V.author_list(followed)
-                V.info(f"{author} followed.")
+                V.info(f"\n{author} followed.")
                 print(f"Following {len(followed)} authors.")
             case [*authors]:
                 V.author_list(authors)
@@ -101,7 +151,7 @@ def unfollow(opt) -> None:
                 db.commit()
                 followed = AuthorDB(db).get_followees()
                 V.author_list(followed)
-                V.info(f"{author} unfollowed.")
+                V.info(f"\n{author} unfollowed.")
                 V.info(f"Now following {len(followed)} authors.")
             case [*authors]:
                 followed = AuthorDB(db).get_followees()
@@ -115,8 +165,9 @@ def unfollow(opt) -> None:
 
 
 def info(opt) -> None:
-    # TODO make a proper info view
-    # maybe show last index
+    # TODO: make a proper info view
+    # TODO: check when database is empty
+
     cnts = {}
     with Storage() as db:
         cnts = {
@@ -223,9 +274,13 @@ class Search:
 
 
 @argsclass(description="follow an author", parser_params=_pp)
-class Add:
+class Follow:
     author: Sequence[str] = _set_author_arg()
-    delete: bool = arg("-d", default=False)
+
+
+@argsclass(description="follow an author", parser_params=_pp)
+class Unfollow:
+    author: Sequence[str] = _set_author_arg()
 
 
 @argsclass
@@ -240,7 +295,7 @@ class Export:
 
 @argsclass
 class Voy:
-    action: Union[Show, Add, Update, Search, Info, Export]
+    action: Union[Show, Follow, Unfollow, Update, Search, Info, Export]
 
 
 def main() -> None:
@@ -263,7 +318,7 @@ def main() -> None:
         if args.action.from_arxiv_json:
             from_json(args.action)
         elif args.action.from_arxiv_api:
-            from_arxiv_api(args.action)
+            update(args.action)
         else:
             V.info(
                 "Either update from arXiv API or from kaggle json. "
@@ -281,12 +336,11 @@ def main() -> None:
         else:
             raise ValueError("No implementation for ", args)
 
-    # follow
-    elif isinstance(args.action, Add):
-        if args.action.delete:
-            unfollow(args.action)
-        else:
-            follow(args.action)
+    # follow / unfollow
+    elif isinstance(args.action, Follow):
+        follow(args.action)
+    elif isinstance(args.action, Unfollow):
+        unfollow(args.action)
 
     # others
     elif isinstance(args.action, Info):

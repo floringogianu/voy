@@ -45,8 +45,8 @@ class Author:
     _papers: Optional[PaperList] = None
 
     def __post_init__(self):
-        assert self.last_name.strip(), "Author should have a last name."
-        assert self.other_names.strip(), "Author should have a first name."
+        assert self.last_name.strip(), f"Author should have a last name, got {self}"
+        # assert self.other_names.strip(), f"Should have a first name, got {self}."
         _id = xxh3_64_hexdigest(self.__hstr())  # f"{self.__hash__():x}"
         if self.id is None:
             self.id = _id
@@ -129,7 +129,13 @@ class Author:
         return self.normalize_author_name(str(self))
 
     def dict(self):
-        return {k: v for k, v in self.__dict__.items() if k[0] != "_"}
+        return {
+            "last_name": self.last_name,
+            "other_names": self.other_names,
+            "name_suffix": self.name_suffix,
+            "id": self.id,
+            "followed": self._followed,
+        }
 
     def __hstr(self):
         """Change this and the hash changes."""
@@ -384,15 +390,23 @@ class AuthorArxiv(Rest[Author]):
     def _make_query(last: str, other: str, suffix: str) -> str:
         query = " AND ".join([n for n in (last, other, suffix) if n])
         query = AuthorArxiv._sanitize(query)
-        query = f"({CATS}) AND (au:{query})"
+        query = f"({CATS}) AND (au:({query}))"
 
         log.debug("arxiv search %s, %s, %s", last, other, suffix)
         log.debug("arxiv query: %s", query)
         return query
 
     @staticmethod
+    def _matches(last: str, other: str, author: Author) -> bool:
+        """Match by last name and any of the other names.
+        TODO: figure out how to make this better.
+        """
+        return last in str(author) and any(o in str(author) for o in other.split(" "))
+
+    @staticmethod
     def search(searched: str, max_results=100) -> set[Author]:
         """Search the arXiv api for matching authors."""
+        # TODO: arxiv search/get is seriously messed up, need fixing asap!
         last, other, suffix = Author.normalize_author_name(searched)
         query = AuthorArxiv._make_query(last, other, suffix)
 
@@ -408,8 +422,7 @@ class AuthorArxiv(Rest[Author]):
         for _paper in res:
             for _author in _paper.authors:
                 author = Author.from_string(_author.name)
-                # match by last name
-                if last in str(author):
+                if AuthorArxiv._matches(last, other, author):
                     matches[author].append(PaperArxiv._cast(_paper))
         for author, papers in matches.items():
             author._papers = papers
@@ -420,6 +433,7 @@ class AuthorArxiv(Rest[Author]):
     def get_papers_(author: Author) -> Author:
         query = AuthorArxiv._make_query(*author.names)
 
+        # TODO: fix for names containing accents: Rémi
         res = arxiv.Client().results(
             arxiv.Search(
                 query,
@@ -438,7 +452,7 @@ class PaperArxiv(Rest[Paper]):
     """Implements arXiv Author rest layer."""
 
     def search(self, searched: str, max_results: int) -> set[Paper]:
-        return super().search(searched, max_results)
+        raise NotImplementedError
 
     @staticmethod
     def _cast(paper: arxiv.Result) -> Paper:
