@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
-from typing import Optional
+from typing import Optional, Union
 
 import arxiv
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
@@ -387,33 +387,52 @@ class AuthorArxiv(Rest[Author]):
         return q.replace("'", "\\")  # "d'Oro -> d\Oro"
 
     @staticmethod
-    def _make_query(last: str, other: str, suffix: str) -> str:
-        query = " AND ".join([n for n in (last, other, suffix) if n])
-        query = AuthorArxiv._sanitize(query)
-        query = f"({CATS}) AND (au:({query}))"
+    def _make_query(last: str, other: str, suffix: str, with_and=False) -> str:
+        """Not sure which is better:
 
-        log.debug("arxiv search %s, %s, %s", last, other, suffix)
-        log.debug("arxiv query: %s", query)
+        'au: last other':
+            - seems to be the least selective, for common last names it will
+            return a lot of them.
+            - fails to return Pablo S. Castro for Pablo Samuel Castro or any of
+            the variations.
+
+        'au: last AND other':
+            - fails to return Rémi Munos for Rémi Munos
+        """
+        sep = " AND " if with_and else " "
+        sterm = sep.join([n for n in (last, other, suffix) if n])
+        sterm = AuthorArxiv._sanitize(sterm)
+        query = f"({CATS}) AND (au: {sterm})"
+        log.debug("arxiv search term: %s", sterm)
         return query
 
     @staticmethod
-    def _matches(last: str, other: str, author: Author) -> bool:
-        """Match by last name and any of the other names.
-        TODO: figure out how to make this better.
-        """
-        return last in str(author) and any(o in str(author) for o in other.split(" "))
+    def get(
+        searched: str, max_results=100, order_by=arxiv.SortCriterion.Relevance
+    ) -> set[Author]:
+        last, other, suffix = Author.normalize_author_name(searched)
+
+        # cast a wider net by ignoring the first other name
+        _other = other.split(" ")[0] if " " in other else other
+        matches: set[Author] = AuthorArxiv.search(" ".join([_other, last]), max_results)
+
+        # exact match with the original search term
+        for author in matches:
+            if (other == author.other_names) and (suffix == author.name_suffix):
+                return {author}
+        return matches
 
     @staticmethod
-    def search(searched: str, max_results=100) -> set[Author]:
+    def search(
+        searched: str, max_results=100, order_by=arxiv.SortCriterion.Relevance
+    ) -> set[Author]:
         """Search the arXiv api for matching authors."""
-        # TODO: arxiv search/get is seriously messed up, need fixing asap!
         last, other, suffix = Author.normalize_author_name(searched)
-        query = AuthorArxiv._make_query(last, other, suffix)
 
         res = arxiv.Client().results(
             arxiv.Search(
-                query,
-                sort_by=arxiv.SortCriterion.LastUpdatedDate,
+                AuthorArxiv._make_query(last, other, suffix),
+                sort_by=order_by,
                 max_results=max_results,
             )
         )
@@ -422,29 +441,25 @@ class AuthorArxiv(Rest[Author]):
         for _paper in res:
             for _author in _paper.authors:
                 author = Author.from_string(_author.name)
-                if AuthorArxiv._matches(last, other, author):
+                if last in str(author):
                     matches[author].append(PaperArxiv._cast(_paper))
         for author, papers in matches.items():
             author._papers = papers
-        log.info(f"got {len(matches):n} matches.")
+        log.info(f"AuthorArxiv search: got {len(matches):n} matches.")
         return set(matches.keys())
 
     @staticmethod
     def get_papers_(author: Author) -> Author:
-        query = AuthorArxiv._make_query(*author.names)
-
-        # TODO: fix for names containing accents: Rémi
-        res = arxiv.Client().results(
-            arxiv.Search(
-                query,
-                sort_by=arxiv.SortCriterion.LastUpdatedDate,
-                max_results=None,
+        # TODO: one does not simply modify a complex type
+        res = AuthorArxiv.get(str(author), order_by=arxiv.SortCriterion.LastUpdatedDate)
+        if not res:
+            res = AuthorArxiv.get(str(author), order_by=arxiv.SortCriterion.Relevance)
+        if res:
+            _author = res.pop()
+            author._papers = _author.papers
+            log.info(
+                f"AuthorArxiv.papers: got {len(author.papers):n} papers for {author:s}."
             )
-        )
-        author._papers = [] if author._papers is None else author._papers
-        for _paper in res:
-            author._papers.append(PaperArxiv._cast(_paper))
-        log.info(f"got {len(author._papers):n} papers for {author:s}.")
         return author
 
 

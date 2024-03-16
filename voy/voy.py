@@ -6,6 +6,7 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
+from arxiv import UnexpectedEmptyPageError
 from datargs import arg, argsclass, parse
 
 from . import query as Q
@@ -48,8 +49,9 @@ def search_author_in_db(searched: Sequence[str]) -> None:
 
 def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
     res = AuthorArxiv.search(" ".join(searched), max_results)
-    for apl in res:
-        V.author_paper_list(apl, 3, False, False)
+    authors = sorted(res, key=lambda a: (a.other_names, a.last_name))
+    for author in authors:
+        V.author_paper_list(author, 2, False, False)
     if max_results:
         V.info(
             f"\nRestricted to a total of {max_results:n} entries. "
@@ -67,7 +69,16 @@ def update(opt) -> None:
     new_cnt, old_cnt, upd_cnt = 0, 0, 0
     db = Storage()
     for author in followees:
-        AuthorArxiv.get_papers_(author)
+        try:
+            AuthorArxiv.get_papers_(author)
+        except UnexpectedEmptyPageError:
+            V.info(f"error fetching papers by {author}.")
+            continue
+
+        if author.papers is None:
+            log.info("update: no papers found for %s", author)
+            continue
+
         print(f" {author:24s}  |  {len(author.papers):3d} papers.", end="\r")
         for paper in author.papers:
             if PaperDB(db).exists(paper):
@@ -78,7 +89,7 @@ def update(opt) -> None:
                     PaperDB(db).update(paper)
                     upd_cnt += 1
                 else:
-                    log.error("Paper version can either be higher or the same.")
+                    log.error("paper version can either be higher or the same.")
             else:
                 # add paper
                 PaperDB(db).save(paper)
@@ -90,7 +101,10 @@ def update(opt) -> None:
 
                     # add the relationship.
                     # TODO: where should this one stay :)
-                    db(Q.add_authorship, {"author_id": author.id, "paper_id": paper.id})
+                    db(
+                        Q.add_authorship,
+                        {"author_id": author.id, "paper_id": paper.id},
+                    )
                 new_cnt += 1
             # write to database
             db.commit()
@@ -102,9 +116,8 @@ def update(opt) -> None:
 
 def follow(opt) -> None:
     log.debug(opt)
-    result: list = list(AuthorArxiv.search(" ".join(opt.author)))
+    result: list = list(AuthorArxiv.get(" ".join(opt.author)))
     with Storage() as db:
-        # TODO: this pattern matching is not order invariant :(
         match result:
             case []:
                 V.info(f"{opt.author} not found on arXiv, try variations of the name.")
@@ -122,7 +135,7 @@ def follow(opt) -> None:
                     AuthorDB(db).save(author)
                 db.commit()
 
-                followed = AuthorDB(db).get_followees()
+                followed = sorted(AuthorDB(db).get_followees())
                 V.author_list(followed)
                 V.info(f"\n{author} followed.")
                 print(f"Following {len(followed)} authors.")
@@ -166,7 +179,7 @@ def unfollow(opt) -> None:
 
 def info(opt) -> None:
     # TODO: make a proper info view
-    # TODO: check when database is empty
+    # TODO: fix when database has not authors or no papers
 
     cnts = {}
     with Storage() as db:
@@ -199,10 +212,11 @@ def info(opt) -> None:
 def export(opt) -> None:
     with Storage() as db:
         followed = AuthorDB(db).get_followees()
+    authors = sorted(followed, key=lambda a: (a.other_names, a.last_name))
     with open(opt.path, mode="w") as f:
         writer = csv.writer(f, delimiter=",", quotechar='"')
-        for author in followed:
-            writer.writerow([author.id, author.last_name, author.other_names])
+        for author in authors:
+            writer.writerow([author.id, *author.names])
 
 
 # argument parser config starts here
