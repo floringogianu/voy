@@ -402,7 +402,7 @@ class AuthorArxiv(Rest[Author]):
         sep = " AND " if with_and else " "
         sterm = sep.join([n for n in (last, other, suffix) if n])
         sterm = AuthorArxiv._sanitize(sterm)
-        query = f"({CATS}) AND (au: {sterm})"
+        query = f"({CATS}) AND (au:{sterm})"
         log.debug("arxiv search term: %s", sterm)
         return query
 
