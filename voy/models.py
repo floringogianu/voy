@@ -40,7 +40,7 @@ class Author:
     last_name: str
     other_names: str
     name_suffix: Optional[str] = ""
-    id: Optional[int] = None
+    id: Optional[str] = None
     _followed: Optional[bool] = None
     _papers: Optional[PaperList] = None
 
