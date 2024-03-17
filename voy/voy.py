@@ -11,7 +11,7 @@ from datargs import arg, argsclass, parse
 
 from . import query as Q
 from . import views as V
-from .models import AuthorArxiv, AuthorDB, Paper, PaperDB
+from .models import Author, AuthorArxiv, AuthorDB, Paper, PaperDB
 from .seed import from_json
 from .storage import Storage
 
@@ -61,10 +61,15 @@ def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
 
 
 def update(opt) -> None:
-    with Storage() as db:
-        followees = AuthorDB(db).get_followees()
-
-    V.info(f"Updating {len(followees):n} authors you follow.")
+    if opt.author:
+        with Storage() as db:
+            author = AuthorDB(db).get(Author.from_string(opt.author).id)
+            assert author.followed, "Can't update papers for authors you don't follow."
+            followees = {author}
+    else:
+        with Storage() as db:
+            followees = AuthorDB(db).get_followees()
+        V.info(f"Updating {len(followees):n} authors you follow.")
 
     new_cnt, old_cnt, upd_cnt = 0, 0, 0
     db = Storage()
@@ -274,6 +279,11 @@ class Update:
     )
     from_arxiv_api: bool = arg(
         default=False, help="using the arXiv API to populate the database"
+    )
+    author: Optional[str] = arg(
+        default=(),
+        help="Update papers of a single author."
+        + " Default is to update all followees.",
     )
     start_index: int = arg(default=1, help="starting arXiv API index")
     stop_index: int = arg(default=10_001, help="maximum arXiv API index")
