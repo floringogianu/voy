@@ -1,4 +1,5 @@
 """Install script."""
+
 from setuptools import find_packages, setup
 
 VERSION = "0.1-alpha"  # single source of truth
@@ -23,9 +24,9 @@ setup(
     author_email="florin.gogianu@gmail.com",
     license="MIT",
     install_requires=[
+        "arxiv~=2.1.0",
         "colorful~=0.5.6",
         "datargs~=1.0.0",
-        "feedparser~=6.0.11",
         "jsonlines~=4.0.0",
         "platformdirs~=4.1.0",
         "xxhash~=3.4.1",
