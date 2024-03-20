@@ -11,3 +11,7 @@ pip install git+https://github.com/floringogianu/voy.git
 ```
 
 I used some experimental syntax that's only in `3.11` and above and I haven't aimed at backward compatibility yet.
+
+## Usage
+
+Just start with `voy --help`.

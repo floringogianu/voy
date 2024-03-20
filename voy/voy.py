@@ -319,16 +319,33 @@ class Export:
 
 @argsclass
 class Voy:
-    action: Union[Show, Follow, Unfollow, Update, Search, Info, Export]
+    action: Union[Search, Show, Follow, Unfollow, Update, Info, Export]
 
 
 def main() -> None:
     args = parse(
         Voy,
         parser=argparse.ArgumentParser(
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
             description="Voy: a CLI for following arXiv authors.",
-            epilog="Hint: start with `voy update --help` to fetch some data.",
+            epilog="""The flow would go like this:
+    `voy search Remi Munos` to search for an author. You should see a list of
+        authors and their papers, because authors often use slight variations of
+        their name and because the arxiv API is fairly fuzzy.
+
+    `voy follow Rémi Munos`         to follow one of the results from above.
+    `voy follow Remi Munos`         to follow yet another name variation of the same author.
+    `voy update --from-arxiv-api`   to fetch their papers and commit them to database.
+
+    With the database updated you can now view the latest papers:
+
+    `voy show`
+
+    `voy show --help` to check all the options for displaying the papers.
+
+    IMPORTANT: often the arxiv API returns no results, without error codes, even
+    if the query is correct. Just let it cool for a while, it should be back eventualy.
+            """,
         ),
     )
     log.info(args)
