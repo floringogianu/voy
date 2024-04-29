@@ -224,14 +224,14 @@ def export(opt) -> None:
             writer.writerow([author.id, *author.names])
 
 
-# argument parser config starts here
+# argument parser config starts here  --------------------------------------------------
 
 
 def _set_author_arg(default=False):
     return arg(
         default=() if default else MISSING,
         positional=True,
-        help="eg.: Marquez | Gabriel-Garcia Marquez.",
+        help="eg.: Hinton | Geoff Hinton | Geoffrey Hinton",
     )
 
 
@@ -242,14 +242,14 @@ _pp = {"formatter_class": argparse.ArgumentDefaultsHelpFormatter}
 class Show:
     author: Sequence[str] = _set_author_arg(default=True)
     by_author: bool = arg(
-        "-f",
+        "-a",
         default=False,
         help="authors you follow and their papers (default: %(default)s)",
     )
     num: int = arg(
         "-n",
         default=0,
-        help="number of papers to list (default: 10); if `--by_author`, defaults to 3",
+        help="no. of papers to list (default: 10); if using `--by_author` (default: 3)",
     )
     coauthors: bool = arg(
         "-c", default=False, help="show co-authors (default: %(default)s)"
@@ -270,56 +270,97 @@ class Show:
             since = now.replace(year=now.year - 1, day=now.day - 1)
         self.since = self.since or dt.strftime(since, Paper.DATE_FMT)
 
+    def run(self) -> None:
+        show(self)
 
-@argsclass(description="seed database", parser_params=_pp)
+
+@argsclass(
+    description="""Fetch papers for followed authors; by default uses the arxiv
+    API.
+    
+        1) arxiv API author match (default): A query with the name of the author
+        is made and a fuzzy match of the past 100 papers or so is returned.
+        2) arxiv json bulk (wip): uses the kaggle json dump.
+        3) arxiv API bulk (todo): fetch batches of K latest papers going back
+        and update only the the authors you follow. 
+    """,
+    parser_params=_pp,
+)
 class Update:
     from_arxiv_json: Optional[Path] = arg(
-        help="Path to the json downloaded from "
+        help="path to the json downloaded from "
         + "`www.kaggle.com/datasets/Cornell-University/arxiv`",
     )
-    from_arxiv_api: bool = arg(
-        default=False, help="using the arXiv API to populate the database"
-    )
-    author: Optional[str] = arg(
-        default=(),
-        help="Update papers of a single author."
-        + " Default is to update all followees.",
-    )
-    start_index: int = arg(default=1, help="starting arXiv API index")
-    stop_index: int = arg(default=10_001, help="maximum arXiv API index")
+    author: Sequence[str] = _set_author_arg(default=True)
+    # start_index: int = arg(default=1, help="starting arXiv API index")
+    # stop_index: int = arg(default=10_001, help="maximum arXiv API index")
+
+    def run(self) -> None:
+        if self.from_arxiv_json:
+            from_json(self)
+        elif self.author:
+            V.info("Updating a single author is not yet implemented.")
+        else:
+            update(self)
 
 
-@argsclass(description="search by author or by paper", parser_params=_pp)
+@argsclass(description="search on arxiv by author", parser_params=_pp)
 class Search:
     author: Sequence[str] = _set_author_arg(True)
     paper: Optional[str] = arg(
         default=(), help="eg.: arxiv_id | Attention is all you need..."
     )
 
+    def run(self):
+        assert (
+            self.author or self.paper
+        ), "Either search for authors or you search for papers."
+
+        if self.author:
+            search_author_in_arxiv(self.author)
+            # search_author_in_db(args.action.author)
+        else:
+            V.info("Paper search is not yet implemented.")
+
 
 @argsclass(description="follow an author", parser_params=_pp)
 class Follow:
     author: Sequence[str] = _set_author_arg()
+
+    def run(self):
+        follow(self)
 
 
 @argsclass(description="follow an author", parser_params=_pp)
 class Unfollow:
     author: Sequence[str] = _set_author_arg()
 
+    def run(self):
+        unfollow(self)
+
 
 @argsclass
 class Info:
     pass
+
+    def run(self):
+        info(self)
 
 
 @argsclass
 class Export:
     path: Path = arg(default=Path.cwd() / "voy.csv", positional=True, help="some path")
 
+    def run(self):
+        export(self)
+
 
 @argsclass
 class Voy:
     action: Union[Search, Show, Follow, Unfollow, Update, Info, Export]
+
+    def run(self):
+        self.action.run()
 
 
 def main() -> None:
@@ -350,46 +391,7 @@ def main() -> None:
     )
     log.info(args)
 
-    # show
-    if isinstance(args.action, Show):
-        show(args.action)
-
-    # update
-    elif isinstance(args.action, Update):
-        if args.action.from_arxiv_json:
-            from_json(args.action)
-        elif args.action.from_arxiv_api:
-            update(args.action)
-        else:
-            V.info(
-                "Either update from arXiv API or from kaggle json. "
-                + "See `voy update --help`.",
-            )
-
-    # search
-    elif isinstance(args.action, Search):
-        assert (
-            args.action.author or args.action.paper
-        ), "Either search for authors or you search for papers."
-        if args.action.author:
-            search_author_in_arxiv(args.action.author)
-            # search_author_in_db(args.action.author)
-        else:
-            raise ValueError("No implementation for ", args)
-
-    # follow / unfollow
-    elif isinstance(args.action, Follow):
-        follow(args.action)
-    elif isinstance(args.action, Unfollow):
-        unfollow(args.action)
-
-    # others
-    elif isinstance(args.action, Info):
-        info(args)
-    elif isinstance(args.action, Export):
-        export(args.action)
-    else:
-        raise ValueError("No implementation for ", args)
+    args.run()
 
 
 if __name__ == "__main__":
