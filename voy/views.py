@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
+from collections import defaultdict
 from datetime import datetime as dt
 from itertools import chain
 
@@ -139,6 +141,35 @@ def author_list(authors):
                 cf.yellow | author.id,
             )
         )
+
+
+def _list_on_cols(data: list[str], cols: int = 1, sep_size: int = 3) -> None:
+    rows = math.ceil(len(data) / cols)
+
+    lines: dict[int, list] = defaultdict(list)
+    max_len: dict[int, int] = {}
+    for count, item in enumerate(data):
+        lines[count % rows].append(item)
+        max_len[count // rows] = max(max_len.get(count // rows, 0), len(item))
+
+    for _, line in sorted(lines.items()):
+        for cidx, item in enumerate(line):
+            print(item.ljust(max_len[cidx] + sep_size), end="")
+        print()
+
+
+def author_table(authors: list[Author]) -> None:
+    data = ["{} ({})".format(author, len(author.papers)) for author in sorted(authors)]
+    author_lenghts = sorted([len(s) for s in data], reverse=True)
+    cols, sep = 5, 3
+    while (sum(author_lenghts[:cols]) + (sep * cols)) > WIDTH:
+        cols -= 1
+
+    data = [
+        "{} ({})".format(author, cf.green | len(author.papers))
+        for author in sorted(authors)
+    ]
+    _list_on_cols(data, cols=cols)
 
 
 def info(msg):

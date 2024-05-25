@@ -143,7 +143,7 @@ def follow(opt) -> None:
                 db.commit()
 
                 followed = sorted(AuthorDB(db).get_followees())
-                V.author_list(followed)
+                V.author_table(followed)
                 V.info(f"\n{author} followed.")
                 print(f"Following {len(followed)} authors.")
             case [*authors]:
@@ -170,7 +170,7 @@ def unfollow(opt) -> None:
                 AuthorDB(db).update(author)
                 db.commit()
                 followed = AuthorDB(db).get_followees()
-                V.author_list(followed)
+                V.author_table(list(followed))
                 V.info(f"\n{author} unfollowed.")
                 V.info(f"Now following {len(followed)} authors.")
             case [*authors]:
@@ -184,7 +184,7 @@ def unfollow(opt) -> None:
                 log.error(f"pattern matching failed for {opt.author} -> {result}.")
 
 
-def info(opt) -> None:
+def info(opt: Info) -> None:
     # TODO: make a proper info view
     # TODO: fix when database has not authors or no papers
 
@@ -195,24 +195,26 @@ def info(opt) -> None:
             "authors": AuthorDB(db).count(),
             "followed": AuthorDB(db).count_followees(),
         }
-        followed = sorted(AuthorDB(db).get_followees())
+        followees = sorted(AuthorDB(db).get_followees())
+        for followee in followees:
+            AuthorDB(db).get_papers_(followee, "01-01-2020")
 
-    if followed:
+    if followees:
         print("Following: ")
-        V.author_list(followed)
+        V.author_table(followees)
 
-    print("DB details: ")
+    print("\nDB details: ")
     for k, v in cnts.items():
         print(f"{k:16}{v:,}")
     with Storage() as db:
         last = PaperDB(db).last()
     print(
-        "Last paper:\n[{}] {}".format(
+        "\nLast paper:\n[{}] {}".format(
             last.updated.split(" ")[0],
             last.meta.title,
         )
     )
-    if not followed:
+    if not followees:
         V.info("\nStart following authors with `voy add`.")
 
 
