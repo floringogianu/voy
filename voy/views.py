@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import logging
 import os
 from datetime import datetime as dt
 from itertools import chain
-from typing import List, Tuple
 
 from . import VOY_LOGS, cf
 from .models import Author, Paper
@@ -28,8 +29,8 @@ def _clip(seq: str, offset: int = 0) -> str:
 
 
 def _date_title_rows(
-    papers: List[Paper], offset: int = 0
-) -> Tuple[Tuple[str, str], ...]:
+    papers: list[Paper], offset: int = 0
+) -> tuple[tuple[str, str], ...]:
     """Assumes an ordered set and returns rows of sparcely formatted (date, title)
     like so:
 
@@ -82,7 +83,7 @@ def _coauthor_rows(paper, indent_len):
     return f"{' '*indent_len}{co_str}"
 
 
-def _list_papers(papers: List[Paper], coauthors: bool, url: bool, pfx=" ", sep=" "):
+def _list_papers(papers: list[Paper], coauthors: bool, url: bool, pfx=" ", sep=" "):
     """Lists paper title, date, co-authors and url, in the formats:
 
     {pfx}MM dd{sep}Title...

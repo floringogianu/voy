@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import argparse
 import csv
 import logging
 from dataclasses import MISSING
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Optional, Sequence, Union
+from typing import Sequence
 
 from arxiv import UnexpectedEmptyPageError
 from datargs import arg, argsclass, parse
@@ -18,7 +20,7 @@ from .storage import Storage
 log = logging.getLogger("voy")
 
 
-def show(opt: "Show") -> None:
+def show(opt: Show) -> None:
     with Storage() as db:
         if opt.author:  # fetch for one author
             authors = AuthorDB(db).search(" ".join(opt.author))
@@ -287,7 +289,7 @@ class Show:
     parser_params=_pp,
 )
 class Update:
-    from_arxiv_json: Optional[Path] = arg(
+    from_arxiv_json: Path | None = arg(
         help="path to the json downloaded from "
         + "`www.kaggle.com/datasets/Cornell-University/arxiv`",
     )
@@ -307,7 +309,7 @@ class Update:
 @argsclass(description="search on arxiv by author", parser_params=_pp)
 class Search:
     author: Sequence[str] = _set_author_arg(True)
-    paper: Optional[str] = arg(
+    paper: str | None = arg(
         default=(), help="eg.: arxiv_id | Attention is all you need..."
     )
 
@@ -357,7 +359,7 @@ class Export:
 
 @argsclass
 class Voy:
-    action: Union[Search, Show, Follow, Unfollow, Update, Info, Export]
+    action: Search | Show | Follow | Unfollow | Update | Info | Export
 
     def run(self):
         self.action.run()

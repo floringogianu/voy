@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
-from typing import Optional, Union
 
 import arxiv
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
@@ -39,10 +38,10 @@ PaperList = list["Paper"]
 class Author:
     last_name: str
     other_names: str
-    name_suffix: Optional[str] = ""
-    id: Optional[str] = None
-    _followed: Optional[bool] = None
-    _papers: Optional[PaperList] = None
+    name_suffix: str | None = ""  # Why not = None?
+    id: str | None = None
+    _followed: bool | None = None
+    _papers: PaperList | None = None
 
     def __post_init__(self):
         assert self.last_name.strip(), f"Author should have a last name, got {self}"
