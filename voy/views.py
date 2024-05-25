@@ -159,16 +159,23 @@ def _list_on_cols(data: list[str], cols: int = 1, sep_size: int = 3) -> None:
 
 
 def author_table(authors: list[Author]) -> None:
-    data = ["{} ({})".format(author, len(author.papers)) for author in sorted(authors)]
+    if authors[0].papers is not None:
+        data = [
+            "{} ({})".format(author, len(author.papers)) for author in sorted(authors)
+        ]
+    else:
+        data = [str(author) for author in sorted(authors)]
     author_lenghts = sorted([len(s) for s in data], reverse=True)
     cols, sep = 5, 3
     while (sum(author_lenghts[:cols]) + (sep * cols)) > WIDTH:
         cols -= 1
 
-    data = [
-        "{} ({})".format(author, cf.green | len(author.papers))
-        for author in sorted(authors)
-    ]
+    if authors[0].papers is not None:
+        data = [
+            "{} ({})".format(author, cf.green | len(author.papers))
+            for author in sorted(authors)
+        ]
+
     _list_on_cols(data, cols=cols)
 
 
