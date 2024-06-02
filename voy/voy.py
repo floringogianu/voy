@@ -262,7 +262,7 @@ class Show:
     since: str = arg(
         "-t",
         default=(),
-        help="earliest date to retrieve papers (default: one year ago)",
+        help="earliest date to retrieve papers, eg. 01.01.2019 (default: one year ago)",
     )
 
     def __post_init__(self):
