@@ -12,13 +12,14 @@ from datetime import datetime as dt
 import arxiv
 from xxhash import xxh3_64_hexdigest, xxh3_64_intdigest
 
+from . import CATEGORIES
 from . import query as Q
 from .storage import Storage
 
 log = logging.getLogger("voy")
 
 PREFIX_MATCH = "van|der|de|la|von|del|della|da|mac|ter|dem|di|vaziri"
-CATS = "cat:cs.CV OR cat:cs.LG OR cat:cs.CL OR cat:cs.AI OR cat:cs.NE OR cat:cs.RO"
+CAT_TERMS = " OR ".join([f"cat:{c}" for c in CATEGORIES])
 
 
 __all__ = (
@@ -401,7 +402,7 @@ class AuthorArxiv(Rest[Author]):
         sep = " AND " if with_and else " "
         sterm = sep.join([n for n in (last, other, suffix) if n])
         sterm = AuthorArxiv._sanitize(sterm)
-        query = f"({CATS}) AND (au:{sterm})"
+        query = f"({CAT_TERMS}) AND (au:{sterm})"
         log.debug("arxiv search term: %s", sterm)
         return query
 
