@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import curses
 import logging
 import math
 import os
+import re
 from collections import defaultdict
 from datetime import datetime as dt
+from functools import partial
 from itertools import chain
 
 from . import VOY_LOGS, cf
@@ -177,6 +180,134 @@ def author_table(authors: list[Author]) -> None:
         ]
 
     _list_on_cols(data, cols=cols)
+
+
+def wordlist(string):
+    """Split the string into individual elements and returning them as a list."""
+    return re.split(r"(\s+|\n+)", string)
+
+
+def wordwrap(window: curses._CursesWindow, string: str) -> None:
+    """Word wrapper for Python Curses module by Ikaros Ainasoja."""
+
+    # Get cursor position
+    cursor_y, cursor_x = window.getyx()
+
+    # Get window dimensions
+    win_height, win_width = window.getmaxyx()
+
+    # If string length <= window width: print the string.
+    if len(string) + cursor_x <= win_width:
+        window.addstr(string)
+
+    # Otherwise, split it into individual words and whitespaces,
+    # put them in a list and try to print them one at a time.
+    else:
+        for item in wordlist(string):
+            # Skip spaces in the beginning of a new line.
+            if cursor_x == 0 and item == " ":
+                continue
+
+            # If list item lenght <= distance to window edge: print it.
+            if len(item) + cursor_x <= win_width:
+                window.addstr(item)
+
+            # Otherwise, move to the next line and try to fit it there.
+            else:
+                # If this would move the cursor out of bounds: error.
+                if cursor_y == win_height - 1:
+                    break
+                    raise Exception("String too long for the window!")
+
+                # Otherwise, print it.
+                window.addstr(cursor_y + 1, 0, item)
+
+            # Get cursor position before the next list item.
+            cursor_y, cursor_x = window.getyx()
+
+
+def draw_menu(stdscr: curses._CursesWindow, papers: list) -> None:
+    # clear and refresh the screen for a blank canvas
+    stdscr.clear()
+    stdscr.refresh()
+
+    # start colors in curses
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_CYAN, -1)
+    curses.init_pair(2, curses.COLOR_RED, -1)
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)
+
+    # loop where k is the last character pressed
+    k = 0
+    cursor = 0
+
+    while k != ord("q"):
+        # controls
+        match k:
+            case curses.KEY_UP:
+                cursor = max(0, cursor - 1)
+            case curses.KEY_LEFT:
+                cursor = min(len(papers) - 1, cursor + 1)
+            case curses.KEY_RIGHT:
+                cursor = min(len(papers) - 1, cursor + 1)
+
+        # initialization
+        stdscr.clear()
+        stdscr.refresh()
+
+        # terminal size
+        height, width = stdscr.getmaxyx()
+
+        # declaration of strings
+        paper = papers[cursor]
+        title: str = paper.meta.title
+        abstract: str = paper.meta.abstract.replace("\n", " ")
+        footer: str = "Press 'q' to exit | Triaged {}/{} papers".format(
+            cursor, len(papers)
+        )
+
+        # padding
+        pad = 0.05
+        start_x = int(width * pad)
+        start_y = int(height * pad)
+        content_width = int(width * (1 - pad * 2))
+        title_rows = 3
+        abstract_rows = height - title_rows - start_y - 1
+
+        # title
+        title_win = curses.newwin(title_rows, content_width, start_y, start_x)
+        title_win.clear()
+        title_win.attrset(curses.color_pair(1))  # color
+        wordwrap(title_win, title)
+
+        # abstract
+        abstract_win = curses.newwin(
+            abstract_rows, content_width, start_y + title_rows, start_x
+        )
+        abstract_win.clear()
+        wordwrap(abstract_win, abstract)
+
+        # status bar
+        footer_win = curses.newwin(1, content_width, height - 1, start_x)
+        footer_win.clear()
+        footer_win.attrset(curses.color_pair(3))  # color
+        footer_win.addstr(footer)
+
+        # refresh everything
+        title_win.refresh()
+        abstract_win.refresh()
+        footer_win.refresh()
+
+        # Wait for next input
+        k = stdscr.getch()
+
+
+def swipe(papers):
+    curses.wrapper(partial(draw_menu, papers=papers))
+
+
+# logging views ------------------------------------------------------------------------
 
 
 def info(msg):
