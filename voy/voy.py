@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import curses
 import logging
 from dataclasses import MISSING
 from datetime import datetime as dt
+from itertools import chain
 from pathlib import Path
 from typing import Sequence
 
@@ -60,6 +62,61 @@ def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
             + "Authors might be omitted. "
             + "Use option `--max 0` to show all author matches."
         )
+
+
+def _one_year_back() -> str:
+    now = dt.now()
+    try:
+        since = now.replace(year=now.year - 1)
+    except ValueError:
+        since = now.replace(year=now.year - 1, day=now.day - 1)
+    return dt.strftime(since, Paper.DATE_FMT)
+
+
+def swipe(opt: List) -> None:
+    num_papers = 0
+
+    with Storage() as db:
+        authors = AuthorDB(db).get_followees()
+        for followee in authors:
+            AuthorDB(db).get_papers_(followee, _one_year_back())
+
+    # sort the papers
+    sorted_authors = sorted(authors, key=lambda author: author.other_names)
+    slice_ = slice(0, num_papers or None)
+    papers: list[Paper] = sorted(
+        set(chain.from_iterable([author.papers for author in sorted_authors])),
+        key=lambda p: p.updated,
+        reverse=True,
+    )[slice_]
+
+    def controller(stdscr: curses._CursesWindow, view: callable, papers: list) -> None:
+        """Uses `curses` to listen for input, retrieves the relevant data and
+        displays it using `view`.
+        """
+        cursor, key = 0, 0
+        while key != ord("q"):
+            # controls
+            match key:
+                case curses.KEY_UP:
+                    cursor = max(0, cursor - 1)
+                case curses.KEY_LEFT:
+                    cursor = min(len(papers) - 1, cursor + 1)
+                case curses.KEY_RIGHT:
+                    cursor = min(len(papers) - 1, cursor + 1)
+
+            paper = papers[cursor]
+            view(paper, f"Triaged {cursor}/{len(papers)} papers")
+
+            # Wait for next input
+            key = stdscr.getch()
+
+    def run(stdscr):
+        """A thin callable for curses.wrapper()."""
+        view = V.init_swipe_view(stdscr)
+        controller(stdscr, view, papers)
+
+    curses.wrapper(run)
 
 
 def update(opt) -> None:
@@ -267,15 +324,20 @@ class Show:
 
     def __post_init__(self):
         self.num = self.num or (3 if self.by_author else 10)
-        now = dt.now()
-        try:
-            since = now.replace(year=now.year - 1)
-        except ValueError:
-            since = now.replace(year=now.year - 1, day=now.day - 1)
-        self.since = self.since or dt.strftime(since, Paper.DATE_FMT)
+        self.since = self.since or _one_year_back()
 
     def run(self) -> None:
         show(self)
+
+
+@argsclass(description="")
+class List:
+    create: str = arg(
+        "-c", help="Name of the reading list in which to swipe papers right."
+    )
+
+    def run(self) -> None:
+        swipe(self)
 
 
 @argsclass(
@@ -361,7 +423,7 @@ class Export:
 
 @argsclass
 class Voy:
-    action: Search | Show | Follow | Unfollow | Update | Info | Export
+    action: Search | Show | List | Follow | Unfollow | Update | Info | Export
 
     def run(self):
         self.action.run()

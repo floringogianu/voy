@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import curses
 import logging
 import math
 import os
+import re
 from collections import defaultdict
 from datetime import datetime as dt
+from functools import partial
 from itertools import chain
 
 from . import VOY_LOGS, cf
@@ -177,6 +180,118 @@ def author_table(authors: list[Author]) -> None:
         ]
 
     _list_on_cols(data, cols=cols)
+
+
+def wordlist(string):
+    """Split the string into individual elements and returning them as a list."""
+    return re.split(r"(\s+|\n+)", string)
+
+
+def wordwrap(window: curses._CursesWindow, string: str) -> None:
+    """Word wrapper for Python Curses module by Ikaros Ainasoja."""
+
+    # Get cursor position
+    cursor_y, cursor_x = window.getyx()
+
+    # Get window dimensions
+    win_height, win_width = window.getmaxyx()
+
+    # If string length <= window width: print the string.
+    if len(string) + cursor_x <= win_width:
+        window.addstr(string)
+
+    # Otherwise, split it into individual words and whitespaces,
+    # put them in a list and try to print them one at a time.
+    else:
+        for item in wordlist(string):
+            # Skip spaces in the beginning of a new line.
+            if cursor_x == 0 and item == " ":
+                continue
+
+            # If list item lenght <= distance to window edge: print it.
+            if len(item) + cursor_x <= win_width:
+                window.addstr(item)
+
+            # Otherwise, move to the next line and try to fit it there.
+            else:
+                # If this would move the cursor out of bounds: error.
+                if cursor_y == win_height - 1:
+                    return
+                    raise Exception("String too long for the window!")
+
+                # Otherwise, print it.
+                window.addstr(cursor_y + 1, 0, item)
+
+            # Get cursor position before the next list item.
+            cursor_y, cursor_x = window.getyx()
+
+
+def init_swipe_view(stdscr):
+    # hide cursor
+    curses.curs_set(0)
+    # start colors in curses
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE, -1)
+    curses.init_pair(2, curses.COLOR_CYAN, -1)
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)
+
+    def f(paper, status) -> None:
+        # initialization
+        stdscr.clear()
+        stdscr.refresh()
+
+        # terminal size
+        height, width = stdscr.getmaxyx()
+
+        # declare strings
+        title: str = paper.meta.title
+        abstract: str = paper.meta.abstract.replace("\n", " ")
+        url = f"https://arxiv.org/abs/{paper.id}"
+        footer = f"{status} | \u2190 (junk), \u2192 (keep), \u2191 (back), 'q' (exit)."
+
+        # padding
+        pad = 0.05
+        start_x = int(width * pad)
+        start_y = int(height * pad)
+        content_width = int(width * (1 - pad * 2))
+        title_rows = 1 if len(title) < content_width else 2
+        url_rows, ftr_rows = 1, 1
+        abs_rows = height - start_y - (title_rows + url_rows + ftr_rows) - 1
+        abs_start_y = start_y + title_rows + url_rows + 1
+
+        # title
+        title_win = curses.newwin(title_rows, content_width, start_y, start_x)
+        title_win.clear()
+        title_win.attrset(curses.A_BOLD)
+        wordwrap(title_win, title)
+
+        # url
+        url_win = curses.newwin(url_rows, content_width, start_y + title_rows, start_x)
+        url_win.clear()
+        url_win.attrset(curses.color_pair(2))
+        url_win.addstr(url)
+
+        # abstract
+        abstract_win = curses.newwin(abs_rows, content_width, abs_start_y, start_x)
+        abstract_win.clear()
+        wordwrap(abstract_win, abstract)
+
+        # status bar
+        footer_win = curses.newwin(ftr_rows, content_width, height - 1, start_x)
+        footer_win.clear()
+        footer_win.addstr(footer)
+
+        # refresh everything
+        url_win.refresh()
+        title_win.refresh()
+        abstract_win.refresh()
+        footer_win.refresh()
+
+    return f
+
+
+# logging views ------------------------------------------------------------------------
 
 
 def info(msg):
