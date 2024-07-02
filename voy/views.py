@@ -263,8 +263,9 @@ def draw_menu(stdscr: curses._CursesWindow, papers: list) -> None:
         paper = papers[cursor]
         title: str = paper.meta.title
         abstract: str = paper.meta.abstract.replace("\n", " ")
-        footer: str = "Press 'q' to exit | Triaged {}/{} papers".format(
-            cursor, len(papers)
+        footer: str = (
+            "Triaged {}/{} papers".format(cursor, len(papers))
+            + "  |  \u2190 (junk), \u2192 (keep), \u2191 (back), 'q' (exit)."
         )
 
         # padding
