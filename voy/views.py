@@ -234,8 +234,8 @@ def draw_menu(stdscr: curses._CursesWindow, papers: list) -> None:
     # start colors in curses
     curses.start_color()
     curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_CYAN, -1)
-    curses.init_pair(2, curses.COLOR_RED, -1)
+    curses.init_pair(1, curses.COLOR_WHITE, -1)
+    curses.init_pair(2, curses.COLOR_CYAN, -1)
     curses.init_pair(3, curses.COLOR_YELLOW, -1)
 
     # loop where k is the last character pressed
@@ -259,10 +259,11 @@ def draw_menu(stdscr: curses._CursesWindow, papers: list) -> None:
         # terminal size
         height, width = stdscr.getmaxyx()
 
-        # declaration of strings
+        # declare strings
         paper = papers[cursor]
         title: str = paper.meta.title
         abstract: str = paper.meta.abstract.replace("\n", " ")
+        url = f"https://arxiv.org/abs/{paper.id}"
         footer: str = (
             "Triaged {}/{} papers".format(cursor, len(papers))
             + "  |  \u2190 (junk), \u2192 (keep), \u2191 (back), 'q' (exit)."
@@ -273,18 +274,24 @@ def draw_menu(stdscr: curses._CursesWindow, papers: list) -> None:
         start_x = int(width * pad)
         start_y = int(height * pad)
         content_width = int(width * (1 - pad * 2))
-        title_rows = 3
+        title_rows = 1 if len(title) < content_width else 2
         abstract_rows = height - title_rows - start_y - 1
 
         # title
         title_win = curses.newwin(title_rows, content_width, start_y, start_x)
         title_win.clear()
-        title_win.attrset(curses.color_pair(1))  # color
+        title_win.attrset(curses.A_BOLD)
         wordwrap(title_win, title)
+
+        # url
+        url_win = curses.newwin(1, content_width, start_y + title_rows, start_x)
+        url_win.clear()
+        url_win.attrset(curses.color_pair(2))
+        url_win.addstr(url)
 
         # abstract
         abstract_win = curses.newwin(
-            abstract_rows, content_width, start_y + title_rows, start_x
+            abstract_rows, content_width, start_y + title_rows + 2, start_x
         )
         abstract_win.clear()
         wordwrap(abstract_win, abstract)
@@ -292,10 +299,10 @@ def draw_menu(stdscr: curses._CursesWindow, papers: list) -> None:
         # status bar
         footer_win = curses.newwin(1, content_width, height - 1, start_x)
         footer_win.clear()
-        footer_win.attrset(curses.color_pair(3))  # color
         footer_win.addstr(footer)
 
         # refresh everything
+        url_win.refresh()
         title_win.refresh()
         abstract_win.refresh()
         footer_win.refresh()
