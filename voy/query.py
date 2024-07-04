@@ -7,7 +7,7 @@ create_tables = [
         last_name TEXT NOT NULL,
         other_names TEXT NOT NULL,
         name_suffix TEXT,
-        followed INT CHECK( 0 <= followed <= 1) NOT NULL
+        followed INTEGER CHECK( followed in (0, 1) ) NOT NULL
     ) STRICT
     """,
     """--sql
@@ -15,7 +15,8 @@ create_tables = [
         id TEXT PRIMARY KEY,
         updated TEXT NOT NULL,
         created TEXT NOT NULL,
-        meta TEXT NOT NULL
+        meta TEXT NOT NULL,
+        visible INTEGER CHECK( visible in (0, 1) ) DEFAULT 1 NOT NULL
     ) STRICT
     """,
     """--sql
@@ -23,10 +24,8 @@ create_tables = [
         id INTEGER PRIMARY KEY,
         author_id TEXT NOT NULL,
         paper_id TEXT NOT NULL,
-        FOREIGN KEY (author_id)
-        REFERENCES author (id),
-        FOREIGN KEY (paper_id)
-        REFERENCES paper (id)
+        FOREIGN KEY (author_id) REFERENCES author (id),
+        FOREIGN KEY (paper_id) REFERENCES paper (id)
     ) STRICT
     """,
     """--sql
@@ -104,7 +103,8 @@ update_paper = """--sql
     UPDATE paper
         SET created = :created,
             updated = :updated,
-            meta = :meta
+            meta = :meta,
+            visible = :visible
         WHERE id = :id
 """
 

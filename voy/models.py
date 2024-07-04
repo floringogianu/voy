@@ -183,11 +183,12 @@ class PaperMeta:
 class Paper:
     DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
-    def __init__(self, id, created, updated, meta) -> None:
+    def __init__(self, id, created, updated, meta, visible) -> None:
         self.id: str = id
         self.created: str = created
         self.updated: str = updated
         self.meta: PaperMeta = meta
+        self.visible: bool = visible
         self._post_init()
 
     def _post_init(self):
@@ -274,7 +275,12 @@ class AuthorDB(Repository[Author]):
         return Author(last, other, suffix, _id, followed)
 
     # TODO: starting_date seems the wrong name
-    def get_papers_(self, author: Author, starting_date: str) -> Author:
+    def get_papers_(
+        self,
+        author: Author,
+        starting_date: str,
+        only_visible: bool = False,
+    ) -> Author:
         """Retrieves the author's papers."""
         csr = self.db(
             Q.get_papers_by_author_id,
@@ -283,9 +289,11 @@ class AuthorDB(Repository[Author]):
         res = csr.fetchall()
 
         author._papers = [] if author._papers is None else author._papers
-        for pid, updated, created, meta in res:
+        for pid, updated, created, meta, visible in res:
+            if only_visible and not visible:
+                continue
             meta = PaperMeta(**json.loads(meta))
-            author._papers.append(Paper(pid, created, updated, meta))
+            author._papers.append(Paper(pid, created, updated, meta, bool(visible)))
         return author
 
     def get_followees(self) -> set[Author]:
@@ -343,9 +351,9 @@ class PaperDB(Repository[Paper]):
     @staticmethod
     def _from_res(res):
         """Helper method that initializes a Paper."""
-        id_, updated, created, meta = res
+        id_, updated, created, meta, visible = res
         meta = PaperMeta(**json.loads(meta))
-        return Paper(id_, created, updated, meta)
+        return Paper(id_, created, updated, meta, bool(visible))
 
     def get(self, id: str) -> Paper:
         res = self.db(Q.get_paper, {"id": id}).fetchone()
@@ -486,4 +494,5 @@ class PaperArxiv(Rest[Paper]):
                 version=version,
                 categories=paper.categories,
             ),
+            visible=True,
         )

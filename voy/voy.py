@@ -31,11 +31,11 @@ def show(opt: Show) -> None:
                 V.info(f"Found no author {opt.author}")
                 return
             for author in authors:
-                AuthorDB(db).get_papers_(author, opt.since)
+                AuthorDB(db).get_papers_(author, opt.since, True)
         else:  # fetch for all followees
             authors = AuthorDB(db).get_followees()
             for followee in authors:
-                AuthorDB(db).get_papers_(followee, opt.since)
+                AuthorDB(db).get_papers_(followee, opt.since, True)
 
     # list papers
     sorted_authors = sorted(authors, key=lambda author: author.other_names)
@@ -74,7 +74,7 @@ def _one_year_back() -> str:
     return dt.strftime(since, Paper.DATE_FMT)
 
 
-def swipe(opt: List) -> None:
+def triage(opt: Triage) -> None:
     num_papers = 0
 
     with Storage() as db:
@@ -95,22 +95,34 @@ def swipe(opt: List) -> None:
         """Uses `curses` to listen for input, retrieves the relevant data and
         displays it using `view`.
         """
-        cursor, key = 0, 0
-        while key != ord("q"):
-            # controls
-            match key:
-                case curses.KEY_UP:
-                    cursor = max(0, cursor - 1)
-                case curses.KEY_LEFT:
-                    cursor = min(len(papers) - 1, cursor + 1)
-                case curses.KEY_RIGHT:
-                    cursor = min(len(papers) - 1, cursor + 1)
+        with Storage() as db:
+            cursor, key = 0, 0
+            while key != ord("q"):
+                paper = papers[cursor]
+                view(paper, f"Triaged {cursor}/{len(papers)} papers")
 
-            paper = papers[cursor]
-            view(paper, f"Triaged {cursor}/{len(papers)} papers")
+                # wait for next input
+                key = stdscr.getch()
 
-            # Wait for next input
-            key = stdscr.getch()
+                # controls
+                match key:
+                    case curses.KEY_UP:
+                        cursor = max(0, cursor - 1)
+                    case curses.KEY_LEFT:
+                        cursor = min(len(papers) - 1, cursor + 1)
+                    case curses.KEY_RIGHT:
+                        cursor = min(len(papers) - 1, cursor + 1)
+
+                # triage paper
+                if key == curses.KEY_LEFT:
+                    paper.visible = False
+                    PaperDB(db).update(paper)
+                    log.info(
+                        "Updating: {} visible={} | {}".format(
+                            paper.id, paper.visible, paper.meta.title
+                        )
+                    )
+                    db.commit()
 
     def run(stdscr):
         """A thin callable for curses.wrapper()."""
@@ -336,14 +348,17 @@ class Show:
         show(self)
 
 
-@argsclass(description="")
-class List:
-    create: str = arg(
-        "-c", help="Name of the reading list in which to swipe papers right."
-    )
+@argsclass(
+    description="""Opens a 'swipe' view that allows quickly going through the
+    most recent papers and reviewing them based on abstract.
 
+    Left arrow key flags the papers so that it does not show up again until next
+    update and increments the list. Right arrow key increments the list.
+    """
+)
+class Triage:
     def run(self) -> None:
-        swipe(self)
+        triage(self)
 
 
 @argsclass(
@@ -429,7 +444,7 @@ class Export:
 
 @argsclass
 class Voy:
-    action: Search | Show | List | Follow | Unfollow | Update | Info | Export
+    action: Search | Show | Triage | Follow | Unfollow | Update | Info | Export
 
     def run(self):
         self.action.run()
