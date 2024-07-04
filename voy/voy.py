@@ -13,6 +13,7 @@ from typing import Sequence
 from arxiv import UnexpectedEmptyPageError
 from datargs import arg, argsclass, parse
 
+from . import VOY_LOGS, VOY_PATH
 from . import query as Q
 from . import views as V
 from .models import Author, AuthorArxiv, AuthorDB, Paper, PaperDB
@@ -256,10 +257,17 @@ def info(opt: Info) -> None:
         for followee in followees:
             AuthorDB(db).get_papers_(followee, "01-01-2020")
 
-    if followees:
-        print("Following: ")
-        V.author_table(followees)
+    print("data: {}\nlogs: {}".format(VOY_PATH, VOY_LOGS))
 
+    # followees list
+    if not followees:
+        V.info("\nStart following authors with `voy add`.")
+        return
+
+    print("\nFollowing: ")
+    V.author_table(followees)
+
+    # other details
     print("\nDB details: ")
     for k, v in cnts.items():
         print(f"{k:16}{v:,}")
@@ -271,8 +279,6 @@ def info(opt: Info) -> None:
             last.meta.title,
         )
     )
-    if not followees:
-        V.info("\nStart following authors with `voy add`.")
 
 
 def export(opt) -> None:
