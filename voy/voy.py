@@ -114,14 +114,13 @@ def triage(opt: Triage) -> None:
                         cursor = min(len(papers) - 1, cursor + 1)
 
                 # triage paper
-                if key == curses.KEY_LEFT:
+                if key == curses.KEY_LEFT and paper.visible:
                     paper.visible = False
                     PaperDB(db).update(paper)
-                    log.info(
-                        "Updating: {} visible={} | {}".format(
-                            paper.id, paper.visible, paper.meta.title
-                        )
-                    )
+                    db.commit()
+                elif key == curses.KEY_RIGHT and not paper.visible:
+                    paper.visible = True
+                    PaperDB(db).update(paper)
                     db.commit()
 
     def run(stdscr):

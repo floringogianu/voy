@@ -232,9 +232,8 @@ def init_swipe_view(stdscr):
     # start colors in curses
     curses.start_color()
     curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_WHITE, -1)
-    curses.init_pair(2, curses.COLOR_CYAN, -1)
-    curses.init_pair(3, curses.COLOR_YELLOW, -1)
+    curses.init_pair(1, curses.COLOR_CYAN, -1)
+    curses.init_pair(2, curses.COLOR_YELLOW, -1)
 
     def f(paper, status) -> None:
         # initialization
@@ -263,18 +262,19 @@ def init_swipe_view(stdscr):
         # title
         title_win = curses.newwin(title_rows, content_width, start_y, start_x)
         title_win.clear()
-        title_win.attrset(curses.A_BOLD)
+        title_win.attrset(curses.A_BOLD if paper.visible else curses.A_NORMAL)
         wordwrap(title_win, title)
 
         # url
         url_win = curses.newwin(url_rows, content_width, start_y + title_rows, start_x)
         url_win.clear()
-        url_win.attrset(curses.color_pair(2))
+        url_win.attrset(curses.color_pair(1) if paper.visible else curses.A_DIM)
         url_win.addstr(url)
 
         # abstract
         abstract_win = curses.newwin(abs_rows, content_width, abs_start_y, start_x)
         abstract_win.clear()
+        abstract_win.attrset(curses.A_NORMAL if paper.visible else curses.A_DIM)
         wordwrap(abstract_win, abstract)
 
         # status bar
