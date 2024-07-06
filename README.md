@@ -19,7 +19,7 @@ To list the most recent papers just hit `voy show`. To quickly review the papers
 
 ### Getting started
 
-https://github.com/floringogianu/voy/assets/1670348/b86ff916-0b44-4b96-b8ea-6882d1fd4fa8
+https://github.com/floringogianu/voy/assets/1670348/65a6bc6f-e813-4516-a321-76774b4f4cf7
 
 ### Triage
 
