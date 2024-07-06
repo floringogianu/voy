@@ -21,3 +21,10 @@ Just start with `voy --help`.
 
 https://github.com/floringogianu/voy/assets/1670348/b86ff916-0b44-4b96-b8ea-6882d1fd4fa8
 
+### Triage
+
+Let's say you have a large number of researchers you follow and you want to quickly review and triage papers so that they don't show anymore in the `voy show` feed.
+You can achieve this with `voy triage`.
+
+https://github.com/floringogianu/voy/assets/1670348/6457b97f-980e-4c7d-b5f5-2f03e288554d
+
