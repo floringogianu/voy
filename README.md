@@ -14,8 +14,8 @@ I used some experimental syntax that's only in `3.11` and above and I haven't ai
 
 ## Usage
 
-Just start with `voy --help`.
-
+Start with `voy --help`. A general flow would be `voy search` for some researcher, `voy follow` him and then doing `voy update` after every follow or daily.
+To list the most recent papers just hit `voy show`. To quickly review the papers in your feed use `voy triage`.
 
 ### Getting started
 
