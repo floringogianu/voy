@@ -1,5 +1,5 @@
-"""Package constants and settings.
-"""
+"""Package constants and settings."""
+
 import logging
 import logging.config
 
@@ -13,7 +13,7 @@ except ImportError:
     raise
 
 # set globals
-VOY_PATH = user_data_path("voy", version=__version__, ensure_exists=True)
+VOY_PATH = user_data_path("voy", ensure_exists=True)
 VOY_LOGS = user_log_path("voy", ensure_exists=True) / "voy.log"
 CATEGORIES = ["cs.CV", "cs.LG", "cs.CL", "cs.AI", "cs.NE", "cs.RO"]
 
