@@ -210,6 +210,10 @@ def wordwrap(window: curses._CursesWindow, string: str) -> None:
 
             # If list item lenght <= distance to window edge: print it.
             if len(item) + cursor_x <= win_width:
+                # we are on the last row, with space for just one character left.
+                # the item fits (len=1) but it pushes the cursor out of bounds.
+                if len(item) + cursor_x == win_width and cursor_y == win_height - 1:
+                    return
                 window.addstr(item)
 
             # Otherwise, move to the next line and try to fit it there.
@@ -217,7 +221,6 @@ def wordwrap(window: curses._CursesWindow, string: str) -> None:
                 # If this would move the cursor out of bounds: error.
                 if cursor_y == win_height - 1:
                     return
-                    raise Exception("String too long for the window!")
 
                 # Otherwise, print it.
                 window.addstr(cursor_y + 1, 0, item)
