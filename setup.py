@@ -26,7 +26,7 @@ setup(
     install_requires=[
         "arxiv~=2.1.0",
         "colorful~=0.5.6",
-        "datargs~=1.0.0",
+        "datargs~=1.1.0",
         "jsonlines~=4.0.0",
         "platformdirs~=4.1.0",
         "xxhash~=3.4.1",
