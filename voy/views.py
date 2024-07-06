@@ -250,7 +250,7 @@ def init_swipe_view(stdscr):
         title: str = paper.meta.title
         abstract: str = paper.meta.abstract.replace("\n", " ")
         url = f"https://arxiv.org/abs/{paper.id}"
-        footer = f"{status} | \u2190 (junk), \u2192 (keep), \u2191 (back), 'q' (exit)."
+        footer = f"{status} | \u2190 (junk), \u2192 (keep), \u2193 (back), 'q' (exit)."
 
         # padding
         pad = 0.05

@@ -1,3 +1,9 @@
+"""This file plays two roles:
+- contains all the Controllers that orchestrate user inputs, models and views.
+- defines the argparser.
+- is the entry point of the program :)
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -106,7 +112,7 @@ def triage(opt: Triage) -> None:
 
                 # controls
                 match key:
-                    case curses.KEY_UP:
+                    case curses.KEY_DOWN:
                         cursor = max(0, cursor - 1)
                     case curses.KEY_LEFT:
                         cursor = min(len(papers) - 1, cursor + 1)
