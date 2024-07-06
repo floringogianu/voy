@@ -19,4 +19,5 @@ Just start with `voy --help`.
 
 ### Getting started
 
-<video src="/demo/voy_jul06_getting_started.webm.mov" controls="controls" style="max-width: 730px;"></video>
+https://github.com/floringogianu/voy/assets/1670348/b86ff916-0b44-4b96-b8ea-6882d1fd4fa8
+
