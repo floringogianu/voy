@@ -15,3 +15,8 @@ I used some experimental syntax that's only in `3.11` and above and I haven't ai
 ## Usage
 
 Just start with `voy --help`.
+
+
+### Getting started
+
+<video src="/demo/voy_jul06_getting_started.webm.mov" controls="controls" style="max-width: 730px;"></video>
