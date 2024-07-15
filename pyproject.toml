@@ -2,7 +2,7 @@
 name = "voy"
 version = "0.2.0"
 description = "A CLI for following arxiv authors."
-authors = ["Florin Gogianu"]
+authors = ["Florin Gogianu <florin.gogianu@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 
