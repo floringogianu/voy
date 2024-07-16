@@ -2,7 +2,7 @@
 
 from setuptools import find_packages, setup
 
-VERSION = "0.1-alpha"  # single source of truth
+VERSION = "0.2.0"  # single source of truth
 
 
 with open("./voy/version.py", "w") as f:
@@ -30,6 +30,8 @@ setup(
         "jsonlines~=4.0.0",
         "platformdirs~=4.1.0",
         "xxhash~=3.4.1",
+        "windows-curses~=2.3.3; sys_platform == 'win32'"
     ],
+    
     zip_safe=False,
 )
