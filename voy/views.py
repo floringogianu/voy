@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-import platform
-if platform.system() == "Windows":
-    import windows_curses as curses
-else:
-    import curses
-    
+import curses
 import logging
 import math
 import os

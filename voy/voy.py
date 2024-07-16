@@ -8,11 +8,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-import platform
-if platform.system() == "Windows":
-    import windows_curses as curses
-else:
-    import curses
+import curses
 import logging
 from dataclasses import MISSING
 from datetime import datetime as dt
