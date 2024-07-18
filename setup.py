@@ -30,6 +30,8 @@ setup(
         "jsonlines~=4.0.0",
         "platformdirs~=4.1.0",
         "xxhash~=3.4.1",
+        "windows-curses~=2.3.3; sys_platform == 'win32'"
     ],
+    
     zip_safe=False,
 )
