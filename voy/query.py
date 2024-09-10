@@ -2,6 +2,7 @@
 
 create_tables = [
     """--sql
+    -- author
     CREATE TABLE IF NOT EXISTS author (
         id TEXT PRIMARY KEY,
         last_name TEXT NOT NULL,
@@ -11,6 +12,7 @@ create_tables = [
     ) STRICT
     """,
     """--sql
+    -- paper
     CREATE TABLE IF NOT EXISTS paper (
         id TEXT PRIMARY KEY,
         updated TEXT NOT NULL,
@@ -20,6 +22,24 @@ create_tables = [
     ) STRICT
     """,
     """--sql
+    --support for full text search
+    CREATE VIRTUAL TABLE IF NOT EXISTS paper_fts USING FTS5(
+        id,
+        updated,
+        created,
+        meta,
+        visible,
+        content='paper',
+        content_rowid='rowid'
+    )
+    """,
+    """--sql
+    --TODO: I think we should avoid executing this every time.
+    INSERT INTO paper_fts (rowid, id, updated, created, meta, visible)
+    SELECT rowid, id, updated, created, meta, visible FROM paper
+    """,
+    """--sql
+    -- authorship
     CREATE TABLE IF NOT EXISTS authorship (
         id INTEGER PRIMARY KEY,
         author_id TEXT NOT NULL,
@@ -29,6 +49,7 @@ create_tables = [
     ) STRICT
     """,
     """--sql
+    -- create indices
     CREATE INDEX IF NOT EXISTS name_idx ON author(last_name, other_names)
     """,
     """--sql
@@ -112,6 +133,13 @@ get_paper = """--sql
     SELECT *
       FROM paper
      WHERE paper.id = :id
+"""
+
+fts = """--sql
+    SELECT *
+      FROM paper_fts
+     WHERE paper_fts
+     MATCH :term
 """
 
 count_paper = """--sql

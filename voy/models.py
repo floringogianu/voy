@@ -6,6 +6,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime as dt
 
@@ -377,6 +378,10 @@ class PaperDB(Repository[Paper]):
     def last(self, col: str = "created") -> Paper:
         res = self.db(Q.last_paper_by.format(col=col), {}).fetchone()
         return self._from_res(res)
+
+    def full_text_search(self, term: Sequence[str]) -> list[Paper]:
+        res = self.db(Q.fts, {"term": term}).fetchall()
+        return [self._from_res(r) for r in res]
 
 
 class Rest[T](ABC):

@@ -29,6 +29,9 @@ from .storage import Storage
 log = logging.getLogger("voy")
 
 
+# TODO: exit codes!!!
+
+
 def show(opt: Show) -> None:
     with Storage() as db:
         if opt.author:  # fetch for one author
@@ -56,6 +59,12 @@ def search_author_in_db(searched: Sequence[str]) -> None:
     with Storage() as db:
         authors = AuthorDB(db).search(" ".join(searched))
     V.author_list(authors)
+
+
+def search_text_in_db(searched: Sequence[str]) -> None:
+    with Storage() as db:
+        papers = PaperDB(db).full_text_search(searched)
+    V.paper_list(papers)
 
 
 def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
@@ -396,11 +405,21 @@ class Update:
             update(self)
 
 
-@argsclass(description="search on arxiv by author", parser_params=_pp)
+@argsclass(
+    description="search authors or papers on arxiv or in the local database.",
+    parser_params=_pp,
+)
 class Search:
     author: Sequence[str] = _set_author_arg(True)
     paper: str | None = arg(
-        default=(), help="eg.: arxiv_id | Attention is all you need..."
+        default=(),
+        help="""eg.: arxiv_id | average-reward | attention is all you need.
+        Search through titles and abstracts for the input terms.""",
+    )
+    db: bool = arg(
+        "-db",
+        default=False,
+        help="""Search in the local database (default: %(default)s)""",
     )
 
     def run(self):
@@ -408,11 +427,17 @@ class Search:
             self.author or self.paper
         ), "Either search for authors or you search for papers."
 
-        if self.author:
+        if self.author and not self.db:
             search_author_in_arxiv(self.author)
-            # search_author_in_db(args.action.author)
+        elif self.author and self.db:
+            search_author_in_db(self.author)
+        elif self.paper and not self.db:
+            V.info("Paper search on arxiv is not yet implemented.")
+        elif self.paper and self.db:
+            search_text_in_db(self.paper)
         else:
-            V.info("Paper search is not yet implemented.")
+            log.debug("Some value error in voy.search: %s", self)
+            V.info("Something fishy happened, check logs.")
 
 
 @argsclass(description="follow an author", parser_params=_pp)

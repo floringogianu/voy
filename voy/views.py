@@ -7,7 +7,6 @@ import os
 import re
 from collections import defaultdict
 from datetime import datetime as dt
-from functools import partial
 from itertools import chain
 
 from . import VOY_LOGS, cf
@@ -121,6 +120,12 @@ def latest_papers(data: list[Author], num_papers: int, coauthors: bool, url: boo
     )[slice_]
 
     _list_papers(papers, coauthors, url, pfx="")
+
+
+def paper_list(data: list[Paper]):
+    """View of the paper titles."""
+    papers = sorted(data, key=lambda p: p.updated, reverse=True)
+    _list_papers(papers, coauthors=False, url=False, pfx="")
 
 
 def author_paper_list(author: Author, num_papers: int, coauthors: bool, url: bool):
