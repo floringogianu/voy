@@ -6,12 +6,6 @@ import logging.config
 import colorful as cf
 from platformdirs import user_data_path, user_log_path
 
-try:
-    from .version import __version__
-except ImportError:
-    logging.exception("Probably you didn't run `pip install .`")
-    raise
-
 # set globals
 VOY_PATH = user_data_path("voy", ensure_exists=True)
 VOY_LOGS = user_log_path("voy", ensure_exists=True) / "voy.log"
