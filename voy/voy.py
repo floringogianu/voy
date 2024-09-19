@@ -61,10 +61,10 @@ def search_author_in_db(searched: Sequence[str]) -> None:
     V.author_list(authors)
 
 
-def search_text_in_db(searched: Sequence[str]) -> None:
+def search_text_in_db(searched: Sequence[str], coauthors: bool, url: bool) -> None:
     with Storage() as db:
         papers = PaperDB(db).full_text_search(searched)
-    V.paper_list(papers)
+    V.paper_list(papers, coauthors, url)
 
 
 def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
@@ -421,6 +421,10 @@ class Search:
         default=False,
         help="""Search in the local database (default: %(default)s)""",
     )
+    coauthors: bool = arg(
+        "-c", default=False, help="show co-authors (default: %(default)s)"
+    )
+    url: bool = arg("-u", default=False, help="show arixv URL (default: %(default)s)")
 
     def run(self):
         assert (
@@ -434,7 +438,7 @@ class Search:
         elif self.paper and not self.db:
             V.info("Paper search on arxiv is not yet implemented.")
         elif self.paper and self.db:
-            search_text_in_db(self.paper)
+            search_text_in_db(self.paper, self.coauthors, self.url)
         else:
             log.debug("Some value error in voy.search: %s", self)
             V.info("Something fishy happened, check logs.")

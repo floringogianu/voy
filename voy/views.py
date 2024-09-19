@@ -122,10 +122,10 @@ def latest_papers(data: list[Author], num_papers: int, coauthors: bool, url: boo
     _list_papers(papers, coauthors, url, pfx="")
 
 
-def paper_list(data: list[Paper]):
+def paper_list(data: list[Paper], coauthors: bool, url: bool):
     """View of the paper titles."""
     papers = sorted(data, key=lambda p: p.updated, reverse=True)
-    _list_papers(papers, coauthors=False, url=False, pfx="")
+    _list_papers(papers, coauthors=coauthors, url=url, pfx="")
 
 
 def author_paper_list(author: Author, num_papers: int, coauthors: bool, url: bool):
