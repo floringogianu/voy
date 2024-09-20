@@ -67,17 +67,11 @@ def search_text_in_db(searched: Sequence[str], coauthors: bool, url: bool) -> No
     V.paper_list(papers, coauthors, url)
 
 
-def search_author_in_arxiv(searched: Sequence[str], max_results=100) -> None:
-    res = AuthorArxiv.search(" ".join(searched), max_results)
+def search_author_in_arxiv(searched: Sequence[str], num_papers: int) -> None:
+    res = AuthorArxiv.search(" ".join(searched), 100)
     authors = sorted(res, key=lambda a: (a.other_names, a.last_name))
     for author in authors:
-        V.author_paper_list(author, 2, False, False)
-    if max_results:
-        V.info(
-            f"\nRestricted to a total of {max_results:n} entries. "
-            + "Authors might be omitted. "
-            + "Use option `--max 0` to show all author matches."
-        )
+        V.author_paper_list(author, num_papers, False, False)
 
 
 def _one_year_back() -> str:
@@ -425,6 +419,12 @@ class Search:
         "-c", default=False, help="show co-authors (default: %(default)s)"
     )
     url: bool = arg("-u", default=False, help="show arixv URL (default: %(default)s)")
+    num: int = arg(
+        "-n",
+        default=2,
+        help="""number of papers to show for each author when searching on arXiv
+        (default: %(default)s)""",
+    )
 
     def run(self):
         assert (
@@ -432,7 +432,7 @@ class Search:
         ), "Either search for authors or you search for papers."
 
         if self.author and not self.db:
-            search_author_in_arxiv(self.author)
+            search_author_in_arxiv(self.author, self.num)
         elif self.author and self.db:
             search_author_in_db(self.author)
         elif self.paper and not self.db:
