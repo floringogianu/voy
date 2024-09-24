@@ -4,13 +4,35 @@ A CLI for following arxiv authors.
 
 ## Installation
 
+### With `pipx`
+
+Using `pipx` it should be pretty straightforward to install `voy` as a command-line utility, `pipx` will manage the required environment.
+
+#### MacOS
+
+```sh
+brew install pipx
+pipx install voy
+```
+
+#### Linux
+
+`pipx` [installation instructions](https://github.com/pypa/pipx?tab=readme-ov-file#on-linux).
+
+```sh
+pipx install voy
+```
+
+### conda/virtual envs and `pip`
+
 Configure an environment with `python 3.12` and run the command:
 
 ```sh
-pip install git+https://github.com/floringogianu/voy.git
+pip install voy
 ```
 
 I used some experimental syntax that's only in `3.11` and above and I haven't aimed at backward compatibility yet.
+
 
 ## Usage
 
