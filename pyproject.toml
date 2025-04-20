@@ -18,7 +18,7 @@ dependencies = [
     "jsonlines>=4.0.0",
     "platformdirs>=4.1.0",
     "xxhash>=3.4.1",
-    "windows-curses>=2.3.2; sys_platform == 'win32'"
+    "windows-curses>=2.3.2; sys_platform == 'win32'",
 ]
 requires-python = ">=3.12.0"
 
@@ -32,5 +32,18 @@ voy = "voy.cmd:voy"
 
 
 [build-system]
-requires      = ["setuptools"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.6.0",
+    "pre-commit>=4.2.0",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.3"
+tag_format = "v$version"
+version_files = ["pyproject.toml:version"]
+update_changelog_on_bump = true
