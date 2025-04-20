@@ -2,16 +2,6 @@
 
 A CLI for following arxiv authors.
 
-## Installation
-
-Configure an environment with `python 3.12` and run the command:
-
-```sh
-pip install git+https://github.com/floringogianu/voy.git
-```
-
-I used some experimental syntax that's only in `3.11` and above and I haven't aimed at backward compatibility yet.
-
 ## Usage
 
 Start with `voy --help`. A general flow would be:
@@ -35,3 +25,31 @@ You can achieve this with `voy triage`.
 
 https://github.com/floringogianu/voy/assets/1670348/6457b97f-980e-4c7d-b5f5-2f03e288554d
 
+## Installation
+
+### With `pipx`
+
+Using `pipx` it should be pretty straightforward to install `voy` as a command-line utility, `pipx` will manage the required environment.
+
+#### MacOS
+
+```sh
+brew install pipx
+pipx install voy
+```
+
+#### Linux
+
+`pipx` [installation instructions](https://github.com/pypa/pipx?tab=readme-ov-file#on-linux).
+
+```sh
+pipx install voy
+```
+
+### conda/virtual envs and `pip`
+
+Configure an environment with `python 3.12` and run the command:
+
+```sh
+pip install voy
+```
