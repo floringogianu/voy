@@ -23,7 +23,7 @@ except OSError:
 
 def short_date(date):
     t = dt.strptime(date, Paper.DATE_FMT)
-    return dt.strftime(t, "%b %d")
+    return dt.strftime(t, "%Y %b %d")
 
 
 def _clip(seq: str, offset: int = 0) -> str:
@@ -34,28 +34,39 @@ def _clip(seq: str, offset: int = 0) -> str:
 
 def _date_title_rows(
     papers: list[Paper], offset: int = 0
-) -> tuple[tuple[str, str], ...]:
-    """Assumes an ordered set and returns rows of sparcely formatted (date, title)
-    like so:
+) -> tuple[tuple[str, str, str], ...]:
+    """Assumes an ordered set and returns tuples of sparse (year, month_day,
+    title).  Year and month are sparse, so that we don't display redundant info,
+    titles are clipped to the available row width.
 
-    Jan 20 title
-        18 title
-        12 title
-    Dec 23 title
+    Dec 01 title..
+        24 title..
+    2024 ─────────
+    Jan 20 title..
+        18 title..
+        12 title..
+    Feb 23 title..
     ...
     """
     rows = []
-    _month = ""
+    _year, _month = "", ""
     for paper in papers:
-        month, day = short_date(paper.updated).split(" ")
+        year, month, day = short_date(paper.updated).split(" ")
         if _month != month:
             _month = month
             m = month
         else:
             m = " " * len(month)
-        date = f"{m} {day}"
-        _title = _clip(paper.meta.title, len(date) + offset)
-        rows.append((date, _title))
+        y = ""
+        if _year != year:
+            if _year:
+                _year = year
+                y = year
+            _year = year
+        month_day = f"{m} {day}"
+        year_head = f"{y} {'\u2500' * (WIDTH - len(month_day))}\n" if y else ""
+        clipped_title = _clip(paper.meta.title, len(month_day) + offset)
+        rows.append((year_head, month_day, clipped_title))
     return tuple(rows)
 
 
@@ -69,7 +80,7 @@ def _coauthor_rows(paper, indent_len):
     w = os.get_terminal_size().columns - indent_len
     line = ", ".join(cos)
     if len(line) < w:
-        return f"{' '*indent_len}{line}"
+        return f"{' ' * indent_len}{line}"
     co_str = cos.pop()
     # make the rows
     for co in cos:
@@ -84,7 +95,7 @@ def _coauthor_rows(paper, indent_len):
                 # plus the extra markup
                 co_str += f", ..., ..., {cos[-2]}, {cos[-1]}"
                 break
-    return f"{' '*indent_len}{co_str}"
+    return f"{' ' * indent_len}{co_str}"
 
 
 def _list_papers(papers: list[Paper], coauthors: bool, url: bool, pfx=" ", sep=" "):
@@ -103,12 +114,16 @@ def _list_papers(papers: list[Paper], coauthors: bool, url: bool, pfx=" ", sep="
                    url
     """
     offset = len(pfx) + len(sep)
-    for (date, title), paper in zip(_date_title_rows(papers, offset), papers):
-        print(f"{pfx}{cf.bold | date}{sep}{cf.bold | title if coauthors else title}")
+    for (year, date, title), paper in zip(_date_title_rows(papers, offset), papers):
+        indent = len(date) + offset
+        c_year = cf.dimmed | year
+        c_date = cf.bold | date
+        c_title = cf.bold | title if coauthors else title
+        print(f"{c_year}{pfx}{c_date}{sep}{c_title}")
         if coauthors:
-            print(_coauthor_rows(paper, len(date) + offset))
+            print(_coauthor_rows(paper, indent))
         if url:
-            print(cf.cyan | f"{'':>{len(date)+offset}}https://arxiv.org/abs/{paper.id}")
+            print(cf.cyan | f"{'':>{indent}}https://arxiv.org/abs/{paper.id}")
 
 
 def latest_papers(data: list[Author], num_papers: int, coauthors: bool, url: bool):
