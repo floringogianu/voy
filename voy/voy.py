@@ -10,11 +10,11 @@ import argparse
 import csv
 import curses
 import logging
+from collections.abc import Sequence
 from dataclasses import MISSING
 from datetime import datetime as dt
 from itertools import chain
 from pathlib import Path
-from typing import Sequence
 
 from arxiv import UnexpectedEmptyPageError
 from datargs import arg, argsclass, parse
@@ -427,9 +427,9 @@ class Search:
     )
 
     def run(self):
-        assert (
-            self.author or self.paper
-        ), "Either search for authors or you search for papers."
+        assert self.author or self.paper, (
+            "Either search for authors or you search for papers."
+        )
 
         if self.author and not self.db:
             search_author_in_arxiv(self.author, self.num)
