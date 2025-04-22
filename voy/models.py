@@ -379,9 +379,8 @@ class PaperDB(Repository[Paper]):
         res = self.db(Q.last_paper_by.format(col=col), {}).fetchone()
         return self._from_res(res)
 
-    # TODO fix terms containing "-"
     def full_text_search(self, term: Sequence[str]) -> list[Paper]:
-        res = self.db(Q.fts, {"term": term}).fetchall()
+        res = self.db(Q.fts, {"term": f'"{term}"'}).fetchall()
         return [self._from_res(r) for r in res]
 
 
