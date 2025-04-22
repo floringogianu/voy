@@ -325,7 +325,17 @@ def _set_author_arg(default=False):
 _pp = {"formatter_class": argparse.ArgumentDefaultsHelpFormatter}
 
 
-@argsclass(description="list papers by authors you follow")
+@argsclass(
+    description="""Without arguments it displays the most recent 10 papers from
+    the authors you follow. Some useful arguments:
+
+    `voy show Alex Graves`    most recent papers by an author.
+    `voy show -a`             list the authors you follow and their last 3 papers. 
+    `voy show -n 20`          change the default number of papers being listed.
+                              Works with all other arguments.
+    """,
+    parser_params={"formatter_class": argparse.RawDescriptionHelpFormatter},
+)
 class Show:
     author: Sequence[str] = _set_author_arg(default=True)
     by_author: bool = arg(
@@ -400,8 +410,18 @@ class Update:
 
 
 @argsclass(
-    description="search authors or papers on arxiv or in the local database.",
-    parser_params=_pp,
+    description="""Search authors or papers on arxiv or in the local database.
+    Some often used patterns could be:
+    `voy search Sutton`
+        search in the arxiv API for an author's last name, returns all the
+        authors matching and their recent couple of papers. Useful for knowing
+        exactly which authors to follow.
+    `voy search --paper "average-reward" --db`
+        full text search the paper titles and abstracts in the local db that
+        match the term. Really useful for cutting through the noise when
+        following many authors. Quotes can be omitted for single terms.
+    """,
+    parser_params={"formatter_class": argparse.RawDescriptionHelpFormatter},
 )
 class Search:
     author: Sequence[str] = _set_author_arg(True)
@@ -495,17 +515,18 @@ def main() -> None:
         authors and their papers, because authors often use slight variations of
         their name and because the arxiv API is fairly fuzzy.
 
-    `voy follow Rémi Munos`         to follow one of the results from above.
-    `voy follow Remi Munos`         to follow yet another name variation of the same author.
-    `voy update --from-arxiv-api`   to fetch their papers and commit them to database.
+    `voy follow Rémi Munos`     to follow one of the results from above.
+    `voy follow Remi Munos`     to follow yet another name variation of the same author.
+    `voy update`                to fetch their papers and commit them to database.
 
     With the database updated you can now view the latest papers:
 
     `voy show`
 
-    `voy show --help` to check all the options for displaying the papers.
+    `voy show --help` check the options for displaying papers from authors you follow.
+    `voy arg --help`  simillarly, check the options for the other arguments.
 
-    IMPORTANT: often the arxiv API returns no results, without error codes, even
+    IMPORTANT: sometimes the arxiv API returns no results, without error codes, even
     if the query is correct. Just let it cool for a while, it should be back eventualy.
             """,
         ),
