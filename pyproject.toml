@@ -1,6 +1,6 @@
 [project]
 name = "voy"
-version = "0.1.0"
+version = "0.1.1"
 description = "A CLI for following arXiv authors."
 readme = "README.md"
 authors = [{ name = "Florin Gogianu", email = "florin.gogianu@gmail.com" }]
@@ -43,7 +43,7 @@ dev = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.0"
+version = "0.1.1"
 tag_format = "v$version"
 version_files = ["pyproject.toml:version"]
 update_changelog_on_bump = true

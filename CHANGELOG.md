@@ -1,3 +1,9 @@
+## v0.1.1 (2025-04-22)
+
+### Fix
+
+- full text search for hyphenated words
+
 ## v0.1.0 (2025-04-21)
 
 ### Feat
