@@ -18,6 +18,7 @@ from pathlib import Path
 
 from arxiv import UnexpectedEmptyPageError
 from datargs import arg, argsclass, parse
+from requests import ConnectionError
 
 from . import VOY_LOGS, VOY_PATH
 from . import query as Q
@@ -156,8 +157,13 @@ def update(opt) -> None:
     for author in followees:
         try:
             AuthorArxiv.get_papers_(author)
-        except UnexpectedEmptyPageError:
-            V.info(f"error fetching papers by {author}.")
+        except UnexpectedEmptyPageError as err:
+            V.info(f"unexpected error fetching papers by {author}.")
+            log.debug("unexcpected error querying arXiv papers by %s: %s", author, err)
+            continue
+        except ConnectionError as err:
+            V.info(f"connection error fetching papers by {author}.")
+            log.debug("connection error querying arXiv papers by %s: %s", author, err)
             continue
 
         if author.papers is None:
