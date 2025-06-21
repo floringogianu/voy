@@ -463,6 +463,7 @@ class AuthorArxiv(Rest[Author]):
 
     @staticmethod
     def get_papers_(author: Author) -> Author:
+        # TODO: named get_papers_() but returns an Author :(
         # TODO: one does not simply modify a complex type
         res = AuthorArxiv.get(str(author), order_by=arxiv.SortCriterion.LastUpdatedDate)
         if not res:
