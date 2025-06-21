@@ -1,3 +1,9 @@
+## v0.1.2 (2025-06-21)
+
+### Fix
+
+- catch error caused by aborted connections.
+
 ## v0.1.1 (2025-04-22)
 
 ### Fix
