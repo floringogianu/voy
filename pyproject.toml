@@ -12,13 +12,13 @@ classifiers = [
 ]
 keywords = ["arxiv", "feed"]
 dependencies = [
-    "arxiv>=2.1.0",
-    "colorful>=0.5.6",
+    "arxiv==2.2.0",
+    "colorful>=0.5.7",
     "datargs>=1.1.0",
     "jsonlines>=4.0.0",
-    "platformdirs>=4.1.0",
-    "xxhash>=3.4.1",
-    "windows-curses>=2.3.2; sys_platform == 'win32'",
+    "platformdirs>=4.3.8",
+    "xxhash>=3.5.0",
+    "windows-curses>=2.4.1; sys_platform == 'win32'",
 ]
 requires-python = ">=3.12.0"
 
