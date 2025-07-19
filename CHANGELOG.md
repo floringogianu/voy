@@ -1,3 +1,13 @@
+## v0.2.0 (2025-07-19)
+
+### Feat
+
+- update a single author
+
+### Fix
+
+- remove brackets around author in the query, finds more matches
+
 ## v0.1.2 (2025-06-21)
 
 ### Fix
