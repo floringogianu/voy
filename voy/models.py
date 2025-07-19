@@ -411,11 +411,16 @@ class AuthorArxiv(Rest[Author]):
 
         'au: last AND other':
             - fails to return Rémi Munos for Rémi Munos
+
+        '... AND (au:last other)':
+            - it was used before 19.07.2025
+            - much slower than without brackets
+            - returns 5% less papers than without brackets on ~180 followees
         """
         sep = " AND " if with_and else " "
         sterm = sep.join([n for n in (last, other, suffix) if n])
         sterm = AuthorArxiv._sanitize(sterm)
-        query = f"({CAT_TERMS}) AND (au:{sterm})"
+        query = f"({CAT_TERMS}) AND au:{sterm}"
         log.debug("arxiv search term: %s", sterm)
         return query
 
