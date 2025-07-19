@@ -10,6 +10,7 @@ import argparse
 import csv
 import curses
 import logging
+import sys
 from collections.abc import Sequence
 from dataclasses import MISSING
 from datetime import datetime as dt
@@ -144,8 +145,13 @@ def triage(opt: Triage) -> None:
 def update(opt) -> None:
     if opt.author:
         with Storage() as db:
-            author = AuthorDB(db).get(Author.from_string(opt.author).id)
-            assert author.followed, "Can't update papers for authors you don't follow."
+            author = AuthorDB(db).get(Author.from_string(" ".join(opt.author)).id)
+            if author is None:
+                V.info("Can't update papers for authors not in the DB.")
+                sys.exit(1)
+            if not author.followed:
+                V.info("Can't update papers for authors not followed.")
+                sys.exit(1)
             followees = {author}
     else:
         with Storage() as db:
@@ -410,7 +416,8 @@ class Update:
         if self.from_arxiv_json:
             from_json(self)
         elif self.author:
-            V.info("Updating a single author is not yet implemented.")
+            # V.info("Updating a single author is not yet implemented.")
+            update(self)
         else:
             update(self)
 

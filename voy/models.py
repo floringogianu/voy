@@ -270,8 +270,10 @@ class AuthorDB(Repository[Author]):
         super().__init__()
         self.db = db
 
-    def get(self, id: str) -> Author:
+    def get(self, id: str) -> Author | None:
         res = self.db(Q.get_author, {"id": id}).fetchone()
+        if res is None:
+            return None
         _id, last, other, suffix, followed = res
         return Author(last, other, suffix, _id, followed)
 
