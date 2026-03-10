@@ -428,7 +428,9 @@ class AuthorArxiv(Rest[Author]):
 
     @staticmethod
     def get(
-        searched: str, max_results=100, order_by=arxiv.SortCriterion.Relevance
+        searched: str,
+        max_results=100,
+        order_by=arxiv.SortCriterion.Relevance,
     ) -> set[Author]:
         last, other, suffix = Author.normalize_author_name(searched)
 
