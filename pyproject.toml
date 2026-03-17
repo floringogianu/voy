@@ -12,7 +12,6 @@ classifiers = [
 ]
 keywords = ["arxiv", "feed"]
 dependencies = [
-    "arxiv==2.2.0",
     "colorful>=0.5.7",
     "datargs>=1.1.0",
     "jsonlines>=4.0.0",
@@ -38,6 +37,7 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
     "commitizen>=4.6.0",
+    "ipython>=9.11.0",
     "pre-commit>=4.2.0",
 ]
 

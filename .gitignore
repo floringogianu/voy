@@ -1,3 +1,10 @@
+# project
+uv.lock
+*.db
+_misc/
+docs/
+
+
 # ide
 .vscode
 

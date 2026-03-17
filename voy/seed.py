@@ -7,7 +7,8 @@ import jsonlines as jl
 from . import CATEGORIES
 from . import query as Q
 from . import views as V
-from .models import Author, AuthorDB, Paper, PaperDB, PaperMeta
+from .models import Author, Paper, PaperMeta
+from .repo import AuthorDB, PaperDB
 from .storage import Storage
 
 BATCH_SIZE = 100

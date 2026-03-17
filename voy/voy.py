@@ -10,21 +10,24 @@ import argparse
 import csv
 import curses
 import logging
+import random
 import sys
+import time
 from collections.abc import Sequence
 from dataclasses import MISSING
 from datetime import datetime as dt
+from datetime import timezone as tz
 from itertools import chain
 from pathlib import Path
 
-from arxiv import UnexpectedEmptyPageError
 from datargs import arg, argsclass, parse
-from requests import ConnectionError
 
 from . import VOY_LOGS, VOY_PATH
 from . import query as Q
 from . import views as V
-from .models import Author, AuthorArxiv, AuthorDB, Paper, PaperDB
+from .models import Author, Paper
+from .progress_bar import Progress
+from .repo import AuthorArxiv, AuthorDB, PaperDB
 from .seed import from_json
 from .storage import Storage
 
@@ -70,7 +73,7 @@ def search_text_in_db(searched: Sequence[str], coauthors: bool, url: bool) -> No
 
 
 def search_author_in_arxiv(searched: Sequence[str], num_papers: int) -> None:
-    res = AuthorArxiv.search(" ".join(searched), 100)
+    res = AuthorArxiv.search(" ".join(searched), num_papers)
     authors = sorted(res, key=lambda a: (a.other_names, a.last_name))
     for author in authors:
         V.author_paper_list(author, num_papers, False, False)
@@ -152,96 +155,117 @@ def update(opt) -> None:
             if not author.followed:
                 V.info("Can't update papers for authors not followed.")
                 sys.exit(1)
-            followees = {author}
+            followees = [author]
+            last_paper = PaperDB(db).last()
     else:
         with Storage() as db:
-            followees = AuthorDB(db).get_followees()
+            followees = list(AuthorDB(db).get_followees())
+            last_paper = PaperDB(db).last()
+        # temporary fix, add randomness
+        random.shuffle(followees)
         V.info(f"Updating {len(followees):n} authors you follow.")
 
-    new_cnt, old_cnt, upd_cnt = 0, 0, 0
+    # convert to the format required by ArXiv:
+    # https://info.arxiv.org/help/api/user-manual.html#51-details-of-query-construction
+    last_update_date = last_paper.created.split(" ")[0].replace("-", "") + "0000"
+    current_date = dt.now(tz.utc).strftime("%Y%m%d%H%M")
+
+    timeout, bsz = 10, 10
+    batches = [set(followees[i : i + bsz]) for i in range(0, len(followees), bsz)]
+    new_cnt, old_cnt, upd_cnt, tout_cnt = 0, 0, 0, 0
     db = Storage()
-    for author in followees:
+    prog = Progress(cleanup=True)
+    prog.start()
+    pbar = prog.track(
+        batches, prefix="", context_func=lambda xs: ", ".join([a.last_name for a in xs])
+    )
+    for batch in pbar:
+        _last_names = ",".join([a.last_name for a in batch])
+
         try:
-            AuthorArxiv.get_papers_(author)
-        except UnexpectedEmptyPageError as err:
-            V.info(f"unexpected error fetching papers by {author}.")
-            log.debug("unexcpected error querying arXiv papers by %s: %s", author, err)
-            continue
-        except ConnectionError as err:
-            V.info(f"connection error fetching papers by {author}.")
-            log.debug("connection error querying arXiv papers by %s: %s", author, err)
-            continue
-
-        if author.papers is None:
-            log.info("update: no papers found for %s", author)
+            AuthorArxiv.get_papers_(batch, [last_update_date, current_date])
+        except RuntimeError as err:
+            V.info(f"failed while querying {_last_names}: {err}.")
+            log.debug("failed querying %s: %s", _last_names, err)
+            log.debug("sleep for %s seconds", 2 * timeout)
+            time.sleep(2 * timeout)
+            # TODO: should retry the failed batch
             continue
 
-        print(f" {author:24s}  |  {len(author.papers):3d} papers.", end="\r")
-        for paper in author.papers:
-            if PaperDB(db).exists(paper):
-                old = PaperDB(db).get(paper.id)
-                if old.meta.version == paper.meta.version:
-                    old_cnt += 1
-                elif old.meta.version < paper.meta.version:
-                    PaperDB(db).update(paper)
-                    upd_cnt += 1
+        tstart = time.time()
+        for author in batch:
+            if author.papers is None:
+                log.info("update: no papers found for %s", author)
+                continue
+
+            # print(f" {author:24s}  |  {len(author.papers):3d} papers.", end="\r")
+            for paper in author.papers:
+                if PaperDB(db).exists(paper):
+                    old = PaperDB(db).get(paper.id)
+                    if old.meta.version == paper.meta.version:
+                        old_cnt += 1
+                    elif old.meta.version < paper.meta.version:
+                        PaperDB(db).update(paper)
+                        upd_cnt += 1
+                    else:
+                        log.error("paper version can either be higher or the same.")
                 else:
-                    log.error("paper version can either be higher or the same.")
-            else:
-                # add paper
-                PaperDB(db).save(paper)
-                # and authors
-                for author in paper.meta.authors:
-                    if not AuthorDB(db).exists(author):
-                        author._followed = False
-                        AuthorDB(db).save(author)
+                    # add paper
+                    PaperDB(db).save(paper)
+                    # and authors
+                    for author in paper.meta.authors:
+                        if not AuthorDB(db).exists(author):
+                            author._followed = False
+                            AuthorDB(db).save(author)
 
-                    # add the relationship.
-                    # TODO: where should this one stay :)
-                    db(
-                        Q.add_authorship,
-                        {"author_id": author.id, "paper_id": paper.id},
-                    )
-                new_cnt += 1
-            # write to database
-            db.commit()
+                        # add the relationship.
+                        # TODO: where should this one stay :)
+                        db(
+                            Q.add_authorship,
+                            {"author_id": author.id, "paper_id": paper.id},
+                        )
+                    new_cnt += 1
+                # write to database
+                db.commit()
+        to_sleep = max(timeout - (time.time() - tstart), 0)
+        log.debug("voy.update: sleep for %s", to_sleep)
+        time.sleep(to_sleep)
+    prog.stop()
     db.close()
 
-    print("\x1b[2K", end="\r")  # clean line
-    V.info("{:n} old, {:,} new, {:,} updated.".format(old_cnt, new_cnt, upd_cnt))
+    # print("\x1b[2K", end="\r")  # clean line
+    V.info(
+        "{:n} old, {:,} new, {:,} updated, timed-out {:,}".format(
+            old_cnt, new_cnt, upd_cnt, tout_cnt
+        )
+    )
 
 
 def follow(opt) -> None:
     log.debug(opt)
-    result: list = list(AuthorArxiv.get(" ".join(opt.author)))
-    with Storage() as db:
-        match result:
-            case []:
-                V.info(f"{opt.author} not found on arXiv, try variations of the name.")
-            case [author]:
-                # TODO: checking status like this is ugly, there must be a better way
-                if AuthorDB(db).exists(author):
-                    if AuthorDB(db).is_followed_(author).followed:
-                        V.info(f"{author} already followed.")
-                        return
-                    else:
-                        author._followed = True
-                        AuthorDB(db).update(author)
+    searched = " ".join(opt.author)
+    author = AuthorArxiv.get(searched)
+    if author is None:
+        V.info(f"Not found on arXiv, try `voy search {searched}`.")
+    else:
+        with Storage() as db:
+            # TODO: checking status like this is ugly, there must be a better way
+            if AuthorDB(db).exists(author):
+                if AuthorDB(db).is_followed_(author).followed:
+                    V.info(f"{author} already followed.")
+                    return
                 else:
                     author._followed = True
-                    AuthorDB(db).save(author)
-                db.commit()
+                    AuthorDB(db).update(author)
+            else:
+                author._followed = True
+                AuthorDB(db).save(author)
+            db.commit()
 
-                followed = sorted(AuthorDB(db).get_followees())
-                V.author_table(followed)
-                V.info(f"\n{author} followed.")
-                print(f"Following {len(followed)} authors.")
-            case [*authors]:
-                V.author_list(authors)
-                V.info(f"\nMultiple matches for {opt.author}.")
-                V.info("Try again with one of the authors above.")
-            case _:
-                log.error(f"pattern matching failed for {opt.author} -> {result}.")
+            followed = sorted(AuthorDB(db).get_followees())
+            V.author_table(followed)
+            V.info(f"\n{author} followed.")
+            print(f"Following {len(followed)} authors.")
 
 
 def unfollow(opt) -> None:
@@ -342,7 +366,7 @@ _pp = {"formatter_class": argparse.ArgumentDefaultsHelpFormatter}
     the authors you follow. Some useful arguments:
 
     `voy show Alex Graves`    most recent papers by an author.
-    `voy show -a`             list the authors you follow and their last 3 papers. 
+    `voy show -a`             list the authors you follow and their last 3 papers.
     `voy show -n 20`          change the default number of papers being listed.
                               Works with all other arguments.
     """,
@@ -394,12 +418,12 @@ class Triage:
 @argsclass(
     description="""Fetch papers for followed authors; by default uses the arxiv
     API.
-    
+
         1) arxiv API author match (default): A query with the name of the author
         is made and a fuzzy match of the past 100 papers or so is returned.
         2) arxiv json bulk (wip): uses the kaggle json dump.
         3) arxiv API bulk (todo): fetch batches of K latest papers going back
-        and update only the the authors you follow. 
+        and update only the the authors you follow.
     """,
     parser_params=_pp,
 )
