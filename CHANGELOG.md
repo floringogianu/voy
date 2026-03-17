@@ -1,3 +1,13 @@
+## v0.3.0 (2026-03-17)
+
+### Feat
+
+- major refactoring
+
+### Fix
+
+- style
+
 ## v0.2.0 (2025-07-19)
 
 ### Feat
