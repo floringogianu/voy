@@ -21,9 +21,8 @@ except OSError:
     WIDTH = 80
 
 
-def short_date(date):
-    t = dt.strptime(date, Paper.DATE_FMT)
-    return dt.strftime(t, "%Y %b %d")
+def short_date(date: dt) -> str:
+    return dt.strftime(date, "%Y %b %d")
 
 
 def _clip(seq: str, offset: int = 0) -> str:

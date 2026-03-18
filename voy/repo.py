@@ -1,8 +1,11 @@
+import datetime as dtm
 import json
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import asdict
+from datetime import datetime as dt
 
 from . import CATEGORIES
 from . import query as Q
@@ -71,16 +74,17 @@ class AuthorDB(Repository[Author]):
         return Author(last, other, suffix, _id, followed)
 
     # TODO: starting_date seems the wrong name
+    # TODO: should we really filter by visibility here?
     def get_papers_(
         self,
         author: Author,
-        starting_date: str,
+        starting_date: dt,
         only_visible: bool = False,
     ) -> Author:
         """Retrieves the author's papers."""
+        sqlite_date = dt.strftime(starting_date, PaperDB.DATE_FMT)
         csr = self.db(
-            Q.get_papers_by_author_id,
-            {"aid": author.id, "starting_date": starting_date},
+            Q.get_papers_by_author_id, {"aid": author.id, "starting_date": sqlite_date}
         )
         res = csr.fetchall()
 
@@ -88,8 +92,8 @@ class AuthorDB(Repository[Author]):
         for pid, updated, created, meta, visible in res:
             if only_visible and not visible:
                 continue
-            meta = PaperMeta(**json.loads(meta))
-            author._papers.append(Paper(pid, created, updated, meta, bool(visible)))
+            paper = PaperDB._from_res((pid, updated, created, meta, visible))
+            author._papers.append(paper)
         return author
 
     def get_followees(self) -> set[Author]:
@@ -140,6 +144,8 @@ class AuthorDB(Repository[Author]):
 class PaperDB(Repository[Paper]):
     """Implements SQLite Paper persistence layer."""
 
+    DATE_FMT = "%Y-%m-%d %H:%M:%S"
+
     def __init__(self, db: Storage) -> None:
         super().__init__()
         self.db = db
@@ -148,8 +154,13 @@ class PaperDB(Repository[Paper]):
     def _from_res(res):
         """Helper method that initializes a Paper."""
         id_, updated, created, meta, visible = res
-        meta = PaperMeta(**json.loads(meta))
-        return Paper(id_, created, updated, meta, bool(visible))
+        return Paper(
+            id_,
+            dt.strptime(created, PaperDB.DATE_FMT).replace(tzinfo=dtm.UTC),
+            dt.strptime(updated, PaperDB.DATE_FMT).replace(tzinfo=dtm.UTC),
+            PaperMeta(**json.loads(meta)),
+            bool(visible),
+        )
 
     def get(self, id: str) -> Paper:
         res = self.db(Q.get_paper, {"id": id}).fetchone()
@@ -160,12 +171,24 @@ class PaperDB(Repository[Paper]):
         return bool(csr.fetchone()[0])
 
     def save(self, paper: Paper) -> None:
-        data = paper.dict()
-        self.db(Q.add_paper, {**data, "meta": json.dumps(data["meta"])})
+        data = {
+            "id": paper.id,
+            "created": paper.created.strftime(PaperDB.DATE_FMT),
+            "updated": paper.updated.strftime(PaperDB.DATE_FMT),
+            "meta": json.dumps(asdict(paper.meta)),
+            "visible": int(paper.visible),
+        }
+        self.db(Q.add_paper, data)
 
     def update(self, paper: Paper) -> None:
-        data = paper.dict()
-        self.db(Q.update_paper, {**data, "meta": json.dumps(data["meta"])})
+        data = {
+            "id": paper.id,
+            "created": paper.created.strftime(PaperDB.DATE_FMT),
+            "updated": paper.updated.strftime(PaperDB.DATE_FMT),
+            "meta": json.dumps(asdict(paper.meta)),
+            "visible": int(paper.visible),
+        }
+        self.db(Q.update_paper, data)
 
     def count(self) -> int:
         return self.db(Q.count_paper, {}).fetchone()[0]

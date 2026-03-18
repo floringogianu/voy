@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import curses
+import datetime as dtm
 import logging
 import random
 import sys
@@ -16,7 +17,6 @@ import time
 from collections.abc import Sequence
 from dataclasses import MISSING
 from datetime import datetime as dt
-from datetime import timezone as tz
 from itertools import chain
 from pathlib import Path
 
@@ -79,13 +79,13 @@ def search_author_in_arxiv(searched: Sequence[str], num_papers: int) -> None:
         V.author_paper_list(author, num_papers, False, False)
 
 
-def _one_year_back() -> str:
+def _one_year_back() -> dt:
     now = dt.now()
     try:
         since = now.replace(year=now.year - 1)
     except ValueError:
         since = now.replace(year=now.year - 1, day=now.day - 1)
-    return dt.strftime(since, Paper.DATE_FMT)
+    return since
 
 
 def triage(opt: Triage) -> None:
@@ -163,12 +163,20 @@ def update(opt) -> None:
             last_paper = PaperDB(db).last()
         # temporary fix, add randomness
         random.shuffle(followees)
-        V.info(f"Updating {len(followees):n} authors you follow.")
 
     # convert to the format required by ArXiv:
     # https://info.arxiv.org/help/api/user-manual.html#51-details-of-query-construction
-    last_update_date = last_paper.created.split(" ")[0].replace("-", "") + "0000"
-    current_date = dt.now(tz.utc).strftime("%Y%m%d%H%M")
+    last_update_date = last_paper.created.replace(hour=0, minute=0)
+    last_update_date = last_update_date.strftime("%Y%m%d%H%M")
+    current_date = dt.now(dtm.UTC).strftime("%Y%m%d%H%M")
+
+    V.info(
+        "Updating {:n} authors you follow from {} to {}".format(
+            len(followees),
+            last_paper.created.strftime("%a, %b %d"),
+            dt.now(dtm.UTC).strftime("%a, %b %d"),
+        )
+    )
 
     timeout, bsz = 10, 10
     batches = [set(followees[i : i + bsz]) for i in range(0, len(followees), bsz)]
@@ -311,7 +319,8 @@ def info(opt: Info) -> None:
         }
         followees = sorted(AuthorDB(db).get_followees())
         for followee in followees:
-            AuthorDB(db).get_papers_(followee, "01-01-2020")
+            now = dt.now()
+            AuthorDB(db).get_papers_(followee, now.replace(year=now.year - 2))
 
     print("data: {}\nlogs: {}".format(VOY_PATH, VOY_LOGS))
 
@@ -331,7 +340,7 @@ def info(opt: Info) -> None:
         last = PaperDB(db).last()
     print(
         "\nLast paper:\n[{}] {}".format(
-            last.updated.split(" ")[0],
+            last.updated.strftime("%a, %b %d %Y"),
             last.meta.title,
         )
     )
@@ -396,7 +405,9 @@ class Show:
 
     def __post_init__(self):
         self.num = self.num or (3 if self.by_author else 10)
-        self.since = self.since or _one_year_back()
+        self.since = (
+            dt.strptime(self.since, "%d.%m.%Y") if self.since else _one_year_back()
+        )
 
     def run(self) -> None:
         show(self)

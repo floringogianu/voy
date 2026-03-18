@@ -1,3 +1,4 @@
+import datetime as dtm
 import logging
 import time
 from datetime import datetime as dt
@@ -19,9 +20,9 @@ log = logging.getLogger("voy")
 def from_json(opt) -> None:
     """Uses Kaggle dataset."""
 
-    def arxiv2sqlite_datetime(ts):
-        to = dt.strptime(ts, "%a, %d %b %Y %H:%M:%S %Z")
-        return dt.strftime(to, Paper.DATE_FMT)
+    def kaggle2datetime(ts) -> dt:
+        """Mon, 15 Jan 2024 14:30:45 UTC -> datetime"""
+        return dt.strptime(ts, "%a, %d %b %Y %H:%M:%S %Z").replace(tzinfo=dtm.UTC)
 
     t0 = time.time()
     db = Storage()
@@ -32,8 +33,8 @@ def from_json(opt) -> None:
                 # make the paper
                 paper = Paper(
                     id=_paper["id"],
-                    created=arxiv2sqlite_datetime(_paper["versions"][0]["created"]),
-                    updated=arxiv2sqlite_datetime(_paper["versions"][-1]["created"]),
+                    created=kaggle2datetime(_paper["versions"][0]["created"]),
+                    updated=kaggle2datetime(_paper["versions"][-1]["created"]),
                     meta=PaperMeta(
                         version=int(_paper["versions"][-1]["version"][-1]),
                         authors=[Author(*a[:3]) for a in _paper["authors_parsed"]],
@@ -43,6 +44,7 @@ def from_json(opt) -> None:
                         .replace("  ", " "),
                         categories=paper_categories,
                     ),
+                    visible=True,
                 )
                 # add the paper
                 PaperDB(db).save(paper)

@@ -170,25 +170,21 @@ class PaperMeta:
 
 
 class Paper:
-    DATE_FMT = "%Y-%m-%d %H:%M:%S"
-
     def __init__(self, id, created, updated, meta, visible) -> None:
         self.id: str = id
-        self.created: str = created
-        self.updated: str = updated
+        self.created: dt = created
+        self.updated: dt = updated
         self.meta: PaperMeta = meta
         self.visible: bool = visible
         self._post_init()
 
     def _post_init(self):
-        # the id is not versioned (doesn't end in v1).
-        assert self.id[-1] != "v", f"{self.id} is not a valid arxiv identifier."
-        # date should work with sqlite
-        try:
-            dt.strptime(self.updated, Paper.DATE_FMT)
-        except ValueError as err:
-            msg = f"{self.updated} is not a valid sqlite datetime (%Y-%m-%d %H:%M:%S)"
-            raise ValueError(f"{msg}, {err}")
+        # the id is not versioned (doesn't end in vXX).
+        assert "v" not in self.id, f"{self.id} is not a valid arxiv identifier."
+        assert isinstance(self.created, dt), "Paper.created should be a `datetime`"
+        assert isinstance(self.updated, dt), "Paper.updated should be a `datetime`"
+        assert self.created.tzinfo is not None, "Paper.created must be UTC aware"
+        assert self.updated.tzinfo is not None, "Paper.updated must be UTC aware"
         assert self.created <= self.updated, (
             f"Can't update before publishing:\n{repr(self)}."
         )
@@ -198,7 +194,8 @@ class Paper:
         return {**d, "meta": asdict(self.meta)}
 
     def __str__(self) -> str:
-        return f"({self.id}/{self.updated}) {self.meta.title}"
+        updated = self.updated.strftime("%Y.%m.%d")
+        return f"({self.id}/{updated}) {self.meta.title}"
 
     def __repr__(self) -> str:
         body = ", ".join([f"{k}={v}" for k, v in self.__dict__.items()])

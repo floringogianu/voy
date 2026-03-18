@@ -54,15 +54,15 @@ def parse_arxiv_xml(xml_str):
     for entry in root.findall("atom:entry", ns):
         id = entry.find("atom:id", ns).text.split("/abs/")[-1]
         pid, version = id.split("v")
-        created = dt.fromisoformat(entry.find("atom:published", ns).text)
-        updated = dt.fromisoformat(entry.find("atom:updated", ns).text)
+        created = entry.find("atom:published", ns).text
+        updated = entry.find("atom:updated", ns).text
         authors = [
             a.find("atom:name", ns).text for a in entry.findall("atom:author", ns)
         ]
         paper = Paper(
             id=pid,
-            created=created.strftime(Paper.DATE_FMT),
-            updated=updated.strftime(Paper.DATE_FMT),
+            created=dt.fromisoformat(created.replace("Z", "+00:00")),
+            updated=dt.fromisoformat(updated.replace("Z", "+00:00")),
             meta=PaperMeta(
                 title=entry.find("atom:title", ns).text.strip().replace("\n", " "),
                 abstract=entry.find("atom:summary", ns)
