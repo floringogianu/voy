@@ -34,8 +34,8 @@ class Progress:
 
     # uv-style Braille spinners and block progress characters
     FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    BAR_FILL = "▰"
-    BAR_EMPTY = "▱"
+    BAR_FILL = "-"
+    BAR_EMPTY = "-"
 
     def __init__(self, cleanup: bool = False):
         self.tasks: list[Task] = []
