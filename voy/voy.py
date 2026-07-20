@@ -191,7 +191,10 @@ def update(opt) -> None:
         _last_names = ",".join([a.last_name for a in batch])
 
         try:
-            AuthorArxiv.get_papers_(batch, [last_update_date, current_date])
+            if opt.author:
+                AuthorArxiv.get_papers_(batch)
+            else:
+                AuthorArxiv.get_papers_(batch, [last_update_date, current_date])
         except RuntimeError as err:
             V.info(f"failed while querying {_last_names}: {err}.")
             log.debug("failed querying %s: %s", _last_names, err)
@@ -443,7 +446,12 @@ class Update:
         help="path to the json downloaded from "
         + "`www.kaggle.com/datasets/Cornell-University/arxiv`",
     )
-    author: Sequence[str] = _set_author_arg(default=True)
+    author: Sequence[str] = arg(
+        default=(),
+        positional=True,
+        help="""Name as returned by `voy info`, must be stored in the database.
+        eg.: Geoff Hinton | Geoffrey Hinton.""",
+    )
     # start_index: int = arg(default=1, help="starting arXiv API index")
     # stop_index: int = arg(default=10_001, help="maximum arXiv API index")
 
