@@ -1,3 +1,10 @@
+## v0.3.2 (2026-07-20)
+
+### Fix
+
+-  was not accepting the author argument
+- change progress bar symbols
+
 ## v0.3.1 (2026-03-18)
 
 ### Fix
