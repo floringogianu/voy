@@ -1,3 +1,9 @@
+## v0.4.0 (2026-08-24)
+
+### Feat
+
+- add simple pagination for voy show
+
 ## v0.3.2 (2026-07-20)
 
 ### Fix
