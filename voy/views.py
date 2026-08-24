@@ -125,8 +125,15 @@ def _list_papers(papers: list[Paper], coauthors: bool, url: bool, pfx=" ", sep="
             print(cf.cyan | f"{'':>{indent}}https://arxiv.org/abs/{paper.id}")
 
 
-def latest_papers(data: list[Author], num_papers: int, coauthors: bool, url: bool):
-    slice_ = slice(0, num_papers or None)
+def latest_papers(
+    data: list[Author],
+    num_papers: int,
+    coauthors: bool,
+    url: bool,
+    page: int,
+):
+    start_idx = page * num_papers - num_papers if page else 0
+    slice_ = slice(start_idx, start_idx + num_papers)
     papers = sorted(
         set(chain.from_iterable([author.papers for author in data])),
         key=lambda p: p.updated,

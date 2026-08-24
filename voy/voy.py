@@ -57,7 +57,7 @@ def show(opt: Show) -> None:
         for author in sorted_authors:
             V.author_paper_list(author, opt.num, opt.coauthors, opt.url)
     else:
-        V.latest_papers(sorted_authors, opt.num, opt.coauthors, opt.url)
+        V.latest_papers(sorted_authors, opt.num, opt.coauthors, opt.url, opt.page)
 
 
 def search_author_in_db(searched: Sequence[str]) -> None:
@@ -396,6 +396,12 @@ class Show:
         default=0,
         help="no. of papers to list (default: 10); if using `--by_author` (default: 3)",
     )
+    page: int = arg(
+        "-p",
+        default=0,
+        help="""activates pagination. Eg.: `-p 3 -n 5` shows papers 11 to 15
+        (default: %(default)s)""",
+    )
     coauthors: bool = arg(
         "-c", default=False, help="show co-authors (default: %(default)s)"
     )
@@ -411,6 +417,11 @@ class Show:
         self.since = (
             dt.strptime(self.since, "%d.%m.%Y") if self.since else _one_year_back()
         )
+        # TODO: think about how these raised errors should be presented to the user.
+        # We should be consistent with how we handle bubbled errors and it is related
+        # to exit codes (which as of know are not implemented)
+        if self.page < 0:
+            raise ValueError("`--page/-p` can't be negative!")
 
     def run(self) -> None:
         show(self)
