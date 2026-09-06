@@ -1,3 +1,9 @@
+## v0.4.1 (2026-09-06)
+
+### Fix
+
+- xxhash requires encoded strings
+
 ## v0.4.0 (2026-08-24)
 
 ### Feat
