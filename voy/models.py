@@ -126,10 +126,10 @@ class Author:
             "followed": self._followed,
         }
 
-    def __hstr(self):
+    def __hstr(self) -> bytes:
         """Change this and the hash changes."""
         last, other, sfx = self.last_name, self.other_names, self.name_suffix
-        return f"{other} {last} {sfx}" if sfx else f"{other} {last}"
+        return (f"{other} {last} {sfx}" if sfx else f"{other} {last}").encode("utf-8")
 
     def __hash__(self):
         """Python's hash is randomized between runtimes.
