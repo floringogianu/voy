@@ -1,3 +1,9 @@
+## v0.4.2 (2026-10-14)
+
+### Fix
+
+- last author was displayed first
+
 ## v0.4.1 (2026-09-06)
 
 ### Fix
