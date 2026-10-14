@@ -1,3 +1,9 @@
+## v0.4.3 (2026-10-14)
+
+### Fix
+
+- quieter display of author names
+
 ## v0.4.2 (2026-10-14)
 
 ### Fix
