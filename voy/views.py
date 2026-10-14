@@ -80,7 +80,7 @@ def _coauthor_rows(paper, indent_len):
     line = ", ".join(cos)
     if len(line) < w:
         return f"{' ' * indent_len}{line}"
-    co_str = cos.pop()
+    co_str = cos.pop(0)
     # make the rows
     for co in cos:
         lines_so_far = co_str.split("\n")
