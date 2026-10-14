@@ -79,7 +79,7 @@ def _coauthor_rows(paper, indent_len):
     w = os.get_terminal_size().columns - indent_len
     line = ", ".join(cos)
     if len(line) < w:
-        return f"{' ' * indent_len}{line}"
+        return cf.dimmed | f"{' ' * indent_len}{line}"
     co_str = cos.pop(0)
     # make the rows
     for co in cos:
@@ -94,7 +94,7 @@ def _coauthor_rows(paper, indent_len):
                 # plus the extra markup
                 co_str += f", ..., ..., {cos[-2]}, {cos[-1]}"
                 break
-    return f"{' ' * indent_len}{co_str}"
+    return cf.dimmed | f"{' ' * indent_len}{co_str}"
 
 
 def _list_papers(papers: list[Paper], coauthors: bool, url: bool, pfx=" ", sep=" "):
